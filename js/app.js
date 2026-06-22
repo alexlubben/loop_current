@@ -69,7 +69,7 @@
     data: [],
     minVelocity: 0.0,
     maxVelocity: 1.4,        // speeds at/above this (Loop Current core) saturate to white
-    velocityScale: 0.022,    // particle step per frame — longer, more visible streaks
+    velocityScale: 0.100,    // particle step per frame — longer, more visible streaks
     particleAge: 2500,       // frames before a streak is reborn (longer trails)
     particleMultiplier: 1 / 150, // streak density
     lineWidth: 3,
