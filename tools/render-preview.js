@@ -99,6 +99,9 @@ lines.forEach(function (L) {
            L.w.toFixed(2) + '" stroke-opacity="0.85" stroke-linecap="round"/>');
 });
 out.push('<text x="20" y="34" fill="#eaf4ff" font-family="Helvetica,Arial" font-size="22" font-weight="700">The Loop Current — Gulf of Mexico</text>');
-out.push('<text x="20" y="56" fill="#9db8d2" font-family="Helvetica,Arial" font-size="13">Stylized illustration of flow (static snapshot of the animated field)</text>');
+var subtitle = src === "real HYCOM data" ?
+  "Surface currents from HYCOM / NOAA (static snapshot of the animated map)" :
+  "Illustrative flow field (static snapshot of the animated map)";
+out.push('<text x="20" y="56" fill="#9db8d2" font-family="Helvetica,Arial" font-size="13">' + subtitle + '</text>');
 out.push('</svg>');
 process.stdout.write(out.join("\n"));

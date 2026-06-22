@@ -54,6 +54,8 @@ jobs:
           npm install --no-save sharp >/dev/null 2>&1 || true
           node tools/render-preview.js > /tmp/preview.svg
           node -e "require('sharp')('/tmp/preview.svg').resize(1200).png().toFile('poster.png').then(i=>console.log('poster',i.width+'x'+i.height))" || echo "::warning::poster render skipped"
+          # node_modules was only needed to render the poster; keep it out of the deploy.
+          rm -rf node_modules package-lock.json
           if ! git diff --quiet -- poster.png; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"

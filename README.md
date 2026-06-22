@@ -13,10 +13,12 @@ by current speed.
 
 ![Poster preview](poster.png)
 
-> **Note:** the flow is a *stylized illustration*, not live data. The Loop
-> Current is always shifting; this field is hand-composed to give a vivid,
-> readable sense of the circulation rather than a forecast. (See "Tuning the
-> flow" to swap in real data if you ever want to.)
+> **Data:** the animation is driven by **real HYCOM surface currents** for the
+> Gulf, fetched from NOAA ERDDAP in CI and refreshed daily (see "How the data
+> works"). If the data feed is ever unavailable, the page automatically falls
+> back to a hand-composed *illustrative* field so the animation always plays.
+> The on-map credit line shows which one is currently displayed and the data
+> date.
 
 ## What's in here
 
@@ -24,14 +26,38 @@ by current speed.
 | --- | --- |
 | `index.html` | The standalone, embeddable page |
 | `js/app.js` | Sets up the Leaflet map, basemap, and animated current layer |
-| `js/current-field.js` | Generates the synthetic Loop Current velocity field |
+| `tools/fetch-currents.js` | Pulls real HYCOM currents from NOAA ERDDAP → `data/gulf-currents.json` |
+| `js/current-field.js` | Generates the fallback (illustrative) velocity field |
 | `css/style.css` | Title, legend, and embed styling |
 | `vendor/` | Vendored Leaflet + leaflet-velocity (no CDN needed at runtime) |
 | `tools/render-preview.js` | Renders `poster.png`, a static streamline snapshot |
+| `.github/workflows/pages.yml` | Fetches data, renders the poster, deploys to Pages |
 
-The libraries are vendored locally, so the **only** thing fetched at runtime is
-the satellite basemap tiles (from Esri). If those tiles are ever unreachable,
-the page falls back to a dark ocean background and the animation still plays.
+The libraries are vendored locally, so at runtime the page only fetches the
+current-data JSON (same-origin) and the satellite basemap tiles (from Esri). If
+the tiles are ever unreachable, the page falls back to a dark ocean background
+and the animation still plays.
+
+## How the data works
+
+The Loop Current is always shifting, so the map shows a recent real snapshot
+rather than a hand-drawn cartoon:
+
+1. `tools/fetch-currents.js` runs in GitHub Actions (which has open internet),
+   searches NOAA/IOOS **ERDDAP** servers for HYCOM/RTOFS surface-current
+   datasets, auto-detects the eastward/northward velocity variables and grid
+   layout, subsets to the Gulf, and writes `data/gulf-currents.json` in the
+   leaflet-velocity u/v grid format.
+2. The Pages workflow bakes that JSON into the deployed site (so the browser
+   loads it **same-origin** — no CORS headaches in a CMS embed) and refreshes it
+   **daily** on a schedule.
+3. `js/app.js` loads the JSON; if it's missing, it uses the procedural fallback.
+
+You can run the fetch yourself anywhere with internet:
+
+```bash
+node tools/fetch-currents.js   # writes data/gulf-currents.json
+```
 
 ## Run / preview locally
 
@@ -82,31 +108,32 @@ Everything visual lives in two places and is easy to adjust.
 | `maxVelocity` | Speed mapped to the brightest end of the color scale |
 | `colorScale` | The blue→cyan→gold→white speed ramp |
 
-**The current pattern — `js/current-field.js`:**
+**The data source — `tools/fetch-currents.js`:**
+
+- `SERVERS` / `SEARCH_TERMS` — which ERDDAP servers and models to search.
+- `BBOX` — the geographic box pulled from the dataset.
+- `STRIDE` — grid downsampling (1 = native ~0.08° resolution).
+
+**The fallback pattern — `js/current-field.js`** (only shown if the data feed
+fails):
 
 - `CENTERLINE` — the Loop Current / Gulf Stream path, as `[lon, lat, speed]`
-  waypoints. Edit these to move the loop or change how far north it intrudes.
+  waypoints.
 - `EDDIES` — the rotating rings (`spin: 1` = clockwise/anticyclonic, `-1` =
-  cyclonic). Add, remove, or relocate them.
+  cyclonic).
 - `JET_WIDTH`, `BACKGROUND` — jet breadth and the gentle ambient drift.
 
-Re-render the poster after changing the field:
+Re-render the poster after changing anything:
 
 ```bash
-node tools/render-preview.js > preview.svg   # static streamline snapshot
+node tools/render-preview.js > preview.svg   # uses real data if present
 ```
-
-### Swapping in real data (optional)
-
-`leaflet-velocity` consumes the same `u`/`v` grid JSON that the GCOOS map and
-[earth.nullschool](https://earth.nullschool.net/) use. To drive this with real
-[HYCOM](https://www.hycom.org/) surface currents, replace the
-`window.GulfCurrentField.build()` call in `js/app.js` with a `fetch()` of a
-HYCOM-derived velocity JSON (two records: `parameterNumber` 2 for eastward U,
-3 for northward V). The rest of the page stays the same.
 
 ## Credits
 
+- Current data: [HYCOM](https://www.hycom.org/) via
+  [NOAA ERDDAP](https://www.ncei.noaa.gov/erddap/) (the same model family the
+  GCOOS map uses)
 - Basemap imagery © [Esri](https://www.esri.com/), Maxar, Earthstar Geographics
 - Particle engine: [leaflet-velocity](https://github.com/onaci/leaflet-velocity)
   (a Leaflet port of the earth.nullschool / Windy wind-particle renderer)
