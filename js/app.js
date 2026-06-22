@@ -64,13 +64,11 @@
     "#bdeeb0", "#f2f1a0", "#f7d774", "#fff4cf", "#ffffff"
   ];
 
-  var data = window.GulfCurrentField.build();
-
   var velocityLayer = L.velocityLayer({
     displayValues: false,
-    data: data,
+    data: [],
     minVelocity: 0.0,
-    maxVelocity: 1.8,        // aligns the color scale with our current speeds
+    maxVelocity: 1.8,        // aligns the color scale with current speeds (m/s)
     velocityScale: 0.012,    // particle step per frame (lively but not frantic)
     particleAge: 100,        // frames before a streak is reborn
     particleMultiplier: 1 / 260, // streak density
@@ -79,6 +77,20 @@
     opacity: 0.92,
     colorScale: colorScale
   });
-
   velocityLayer.addTo(map);
+
+  // Prefer REAL HYCOM data (data/gulf-currents.json, generated in CI from NOAA
+  // ERDDAP). Fall back to the procedural field if it isn't there or won't load,
+  // so the animation always plays.
+  function useProcedural() {
+    velocityLayer.setData(window.GulfCurrentField.build());
+  }
+
+  fetch("data/gulf-currents.json", { cache: "no-cache" })
+    .then(function (r) { if (!r.ok) throw new Error("no data file"); return r.json(); })
+    .then(function (data) {
+      if (!Array.isArray(data) || data.length < 2) throw new Error("bad data");
+      velocityLayer.setData(data);
+    })
+    .catch(useProcedural);
 })();

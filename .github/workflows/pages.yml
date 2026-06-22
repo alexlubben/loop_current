@@ -7,6 +7,9 @@ on:
     branches:
       - claude/vigilant-bardeen-49708v
   workflow_dispatch:
+  schedule:
+    # Refresh the HYCOM current data daily (06:30 UTC).
+    - cron: "30 6 * * *"
 
 permissions:
   contents: read
@@ -27,6 +30,17 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Fetch real HYCOM current data
+        # Runs on the GitHub-hosted runner (open internet) and writes
+        # data/gulf-currents.json. If every source is unavailable, the deploy
+        # still proceeds and the page falls back to the procedural field.
+        run: node tools/fetch-currents.js || echo "::warning::HYCOM fetch failed; site will use the procedural fallback field"
 
       - name: Configure Pages
         uses: actions/configure-pages@v5
