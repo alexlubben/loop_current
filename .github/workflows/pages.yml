@@ -6,13 +6,17 @@ on:
   push:
     branches:
       - claude/vigilant-bardeen-49708v
+    paths-ignore:
+      # The job commits a refreshed poster.png; ignore it so that commit
+      # doesn't retrigger the workflow.
+      - "poster.png"
   workflow_dispatch:
   schedule:
     # Refresh the HYCOM current data daily (06:30 UTC).
     - cron: "30 6 * * *"
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -41,6 +45,22 @@ jobs:
         # data/gulf-currents.json. If every source is unavailable, the deploy
         # still proceeds and the page falls back to the procedural field.
         run: node tools/fetch-currents.js || echo "::warning::HYCOM fetch failed; site will use the procedural fallback field"
+
+      - name: Render real-data poster
+        # Render poster.png from the fetched data and commit it back so the
+        # social/preview image always reflects the current map. paths-ignore
+        # above prevents this commit from retriggering the workflow.
+        run: |
+          npm install --no-save sharp >/dev/null 2>&1 || true
+          node tools/render-preview.js > /tmp/preview.svg
+          node -e "require('sharp')('/tmp/preview.svg').resize(1200).png().toFile('poster.png').then(i=>console.log('poster',i.width+'x'+i.height))" || echo "::warning::poster render skipped"
+          if ! git diff --quiet -- poster.png; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add poster.png
+            git commit -m "Update real-data poster [skip ci]"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
 
       - name: Configure Pages
         uses: actions/configure-pages@v5

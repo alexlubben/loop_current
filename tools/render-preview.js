@@ -3,16 +3,28 @@
  * to an SVG. This is a verification artifact / poster image: it shows the same
  * flow the browser animates, integrated into streaklines colored by speed.
  *
- * Usage: node tools/render-preview.js > preview.svg
+ * Uses real HYCOM data (data/gulf-currents.json) if present, otherwise the
+ * procedural field. Usage: node tools/render-preview.js > preview.svg
  */
-global.window = global;
-require("../js/current-field.js");
+var fs = require("fs");
+var path = require("path");
 
-var data = GulfCurrentField.build();
+var data, src;
+var dataFile = path.join(__dirname, "..", "data", "gulf-currents.json");
+if (fs.existsSync(dataFile)) {
+  data = JSON.parse(fs.readFileSync(dataFile, "utf8"));
+  src = "real HYCOM data";
+} else {
+  global.window = global;
+  require("../js/current-field.js");
+  data = GulfCurrentField.build();
+  src = "procedural field";
+}
 var H = data[0].header;
 var U = data[0].data, V = data[1].data;
+process.stderr.write("render-preview: using " + src + " (" + H.nx + "x" + H.ny + ")\n");
 
-// bilinear sampler in lon/lat -> [u, v]
+// bilinear sampler in lon/lat -> [u, v]; returns null over land/missing data
 function sample(lon, lat) {
   var fi = (lon - H.lo1) / H.dx;
   var fj = (H.la1 - lat) / H.dy;
@@ -21,12 +33,15 @@ function sample(lon, lat) {
   var tx = fi - i, ty = fj - j;
   function at(ii, jj, arr) { return arr[jj * H.nx + ii]; }
   function bilin(arr) {
-    return at(i, j, arr) * (1 - tx) * (1 - ty) +
-           at(i + 1, j, arr) * tx * (1 - ty) +
-           at(i, j + 1, arr) * (1 - tx) * ty +
-           at(i + 1, j + 1, arr) * tx * ty;
+    var a = at(i, j, arr), b = at(i + 1, j, arr),
+        c = at(i, j + 1, arr), d = at(i + 1, j + 1, arr);
+    if (a == null || b == null || c == null || d == null) return null;
+    return a * (1 - tx) * (1 - ty) + b * tx * (1 - ty) +
+           c * (1 - tx) * ty + d * tx * ty;
   }
-  return [bilin(U), bilin(V)];
+  var u = bilin(U), v = bilin(V);
+  if (u == null || v == null) return null;
+  return [u, v];
 }
 
 // view box
