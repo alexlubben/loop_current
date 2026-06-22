@@ -38,16 +38,19 @@ const DIRECT = [
   { base: "https://coastwatch.pfeg.noaa.gov/erddap", id: "hycom_gom310D" }
 ];
 
-// ERDDAP servers to search if the direct datasets are unreachable.
+// ERDDAP servers to search if the direct datasets are unreachable. GCOOS and the
+// regional IOOS associations cover the Gulf and don't WAF-block CI runners the
+// way CoastWatch sometimes does.
 const SERVERS = [
-  "https://www.ncei.noaa.gov/erddap",
+  "https://erddap.gcoos.org/erddap",
+  "https://gcoos5.geos.tamu.edu/erddap",
+  "https://erddap.caricoos.org/erddap",
+  "https://erddap.secoora.org/erddap",
   "https://coastwatch.pfeg.noaa.gov/erddap",
-  "https://pae-paha.pacioos.hawaii.edu/erddap",
-  "https://erddap.aoml.noaa.gov/hdb/erddap",
-  "https://upwell.pfeg.noaa.gov/erddap"
+  "https://pae-paha.pacioos.hawaii.edu/erddap"
 ];
-const SEARCH_TERMS = ["hycom", "rtofs"];
-const MAX_CANDIDATES_PER_SERVER = 10;
+const SEARCH_TERMS = ["hycom", "rtofs", "current"];
+const MAX_CANDIDATES_PER_SERVER = 12;
 
 // Candidate eastward/northward velocity variable name pairs, in priority order.
 const UV_PAIRS = [
@@ -64,18 +67,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // fetch JSON with retries/backoff — handles ERDDAP servers (esp. CoastWatch)
 // that intermittently return 403/5xx from a WAF.
-async function getJSON(url, attempts = 4) {
+async function getJSON(url, attempts = 2) {
   let lastErr;
   for (let i = 0; i < attempts; i++) {
     try {
       const res = await fetch(url, {
-        headers: { "User-Agent": UA, "Accept": "application/json" }
+        headers: { "User-Agent": UA, "Accept": "application/json" },
+        signal: AbortSignal.timeout(25000)
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
     } catch (e) {
       lastErr = e;
-      if (i < attempts - 1) await sleep(2000 * (i + 1)); // 2s, 4s, 6s
+      if (i < attempts - 1) await sleep(1500); // brief retry for transient blips
     }
   }
   throw lastErr;
