@@ -69,10 +69,10 @@
     data: [],
     minVelocity: 0.0,
     maxVelocity: 1.4,        // speeds at/above this (Loop Current core) saturate to white
-    velocityScale: 0.012,    // particle step per frame (lively but not frantic)
-    particleAge: 100,        // frames before a streak is reborn
-    particleMultiplier: 1 / 260, // streak density
-    lineWidth: 1.3,
+    velocityScale: 0.022,    // particle step per frame — longer, more visible streaks
+    particleAge: 130,        // frames before a streak is reborn (longer trails)
+    particleMultiplier: 1 / 200, // streak density
+    lineWidth: 2.6,
     frameRate: 24,
     opacity: 0.92,
     colorScale: colorScale
