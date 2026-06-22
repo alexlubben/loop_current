@@ -7,9 +7,10 @@ on:
     branches:
       - claude/vigilant-bardeen-49708v
     paths-ignore:
-      # The job commits a refreshed poster.png; ignore it so that commit
+      # The job commits refreshed data + poster; ignore them so that commit
       # doesn't retrigger the workflow.
       - "poster.png"
+      - "data/gulf-currents.json"
   workflow_dispatch:
   schedule:
     # Refresh the HYCOM current data daily (06:30 UTC).
@@ -56,11 +57,12 @@ jobs:
           node -e "require('sharp')('/tmp/preview.svg').resize(1200).png().toFile('poster.png').then(i=>console.log('poster',i.width+'x'+i.height))" || echo "::warning::poster render skipped"
           # node_modules was only needed to render the poster; keep it out of the deploy.
           rm -rf node_modules package-lock.json
-          if ! git diff --quiet -- poster.png; then
+          # Commit refreshed data + poster so the last-good real data persists.
+          git add -- data/gulf-currents.json poster.png 2>/dev/null || true
+          if ! git diff --cached --quiet; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
-            git add poster.png
-            git commit -m "Update real-data poster [skip ci]"
+            git commit -m "Update HYCOM current data + poster [skip ci]"
             git push origin HEAD:${GITHUB_REF_NAME}
           fi
 

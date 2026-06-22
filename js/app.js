@@ -96,9 +96,13 @@
     .then(function (data) {
       if (!Array.isArray(data) || data.length < 2) throw new Error("bad data");
       velocityLayer.setData(data);
+      // Show the data date only when it's recent (the high-res Gulf archive is
+      // historical, so we don't want to imply it's today's forecast).
       var h = data[0].header || {};
       var when = h.refTime ? new Date(h.refTime) : null;
-      var date = when && !isNaN(when) ?
+      var fresh = when && !isNaN(when) &&
+        (Date.now() - when.getTime()) < 400 * 864e5;
+      var date = fresh ?
         when.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";
       setCredit("Surface currents: HYCOM / NOAA" + (date ? " · " + date : ""));
     })

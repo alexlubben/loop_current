@@ -4,6 +4,3 @@ preview.svg
 preview.png
 *.tgz
 .DS_Store
-
-# generated at deploy time
-data/gulf-currents.json

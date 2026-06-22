@@ -26,13 +26,19 @@ const path = require("path");
 
 // Gulf of Mexico + a slice of the Atlantic so the Gulf Stream has an exit.
 const BBOX = { west: -98.5, east: -76.0, south: 17.5, north: 31.0 };
-const STRIDE = 1; // 1 = native resolution
+const STRIDE = 2; // downsample (1/25deg -> ~1/12deg) to keep the payload light
 
 const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) " +
   "Chrome/124.0 Safari/537.36 loop-current-fetch/1.0";
 
-// ERDDAP servers to search, most-preferred first.
+// Known-good datasets, tried directly (no search needed) before discovery.
+// hycom_gom310D = NRL HYCOM 1/25deg Gulf of Mexico — high-res, Gulf-specific.
+const DIRECT = [
+  { base: "https://coastwatch.pfeg.noaa.gov/erddap", id: "hycom_gom310D" }
+];
+
+// ERDDAP servers to search if the direct datasets are unreachable.
 const SERVERS = [
   "https://www.ncei.noaa.gov/erddap",
   "https://coastwatch.pfeg.noaa.gov/erddap",
@@ -54,10 +60,25 @@ const UV_PAIRS = [
   ["ssu", "ssv"]
 ];
 
-async function getJSON(url) {
-  const res = await fetch(url, { headers: { "User-Agent": UA, "Accept": "application/json" } });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// fetch JSON with retries/backoff — handles ERDDAP servers (esp. CoastWatch)
+// that intermittently return 403/5xx from a WAF.
+async function getJSON(url, attempts = 4) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": UA, "Accept": "application/json" }
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (e) {
+      lastErr = e;
+      if (i < attempts - 1) await sleep(2000 * (i + 1)); // 2s, 4s, 6s
+    }
+  }
+  throw lastErr;
 }
 
 // --- ERDDAP search: return griddap dataset IDs matching a term ---------------
@@ -213,8 +234,22 @@ function buildGrid(resp, uVar, vVar, source) {
     path.join(__dirname, "..", "data", "gulf-currents.json");
 
   let result = null;
+
+  // 1) Try the known-good datasets directly (most reliable path).
+  for (const ds of DIRECT) {
+    try {
+      console.log(`\n#### Direct: ${ds.id} @ ${ds.base}`);
+      result = await tryDataset(ds.base, ds.id);
+      console.log(`   OK: using ${ds.id}`);
+      break;
+    } catch (e) {
+      console.log(`   skip: ${e.message}`);
+    }
+  }
+
+  // 2) Otherwise, discover a dataset by searching each server.
   outer:
-  for (const base of SERVERS) {
+  for (const base of result ? [] : SERVERS) {
     console.log(`\n#### Server: ${base}`);
     // Collect candidate dataset IDs via search.
     const ids = [];
@@ -245,7 +280,9 @@ function buildGrid(resp, uVar, vVar, source) {
   }
 
   if (!result) {
-    console.error("\nNo ERDDAP dataset yielded Gulf current data.");
+    // Leave any existing (last-good) data file untouched so a transient outage
+    // doesn't downgrade the deployed map to the procedural fallback.
+    console.error("\nNo ERDDAP dataset yielded Gulf current data; keeping existing data file if present.");
     process.exit(1);
   }
 
