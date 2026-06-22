@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <title>The Loop Current — How Water Flows Through the Gulf of Mexico</title>
+
+  <meta name="description" content="An animated illustration of the Loop Current: how water flows up through the Yucatan Channel, loops through the Gulf of Mexico, sheds eddies to the west, and bends back through the Florida Straits to feed the Gulf Stream." />
+  <meta property="og:title" content="The Loop Current — Gulf of Mexico" />
+  <meta property="og:description" content="An animated illustration of how water flows through the Gulf of Mexico." />
+  <meta property="og:image" content="poster.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+  <link rel="stylesheet" href="vendor/leaflet-velocity/leaflet-velocity.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="map" aria-label="Animated map of ocean currents in the Gulf of Mexico"></div>
+
+  <div class="title-card">
+    <h1>The Loop Current</h1>
+    <p>Warm water surges up through the Yucatán Channel, loops through the Gulf,
+       pinches off eddies that drift west, then bends back through the Florida
+       Straits to feed the Gulf Stream.</p>
+  </div>
+
+  <div class="legend">
+    <div class="caption">Current speed</div>
+    <div class="bar"></div>
+    <div class="labels"><span>slow</span><span>fast</span></div>
+  </div>
+
+  <div class="disclaimer" id="credit">Surface currents: HYCOM / NOAA</div>
+
+  <!-- Vendored libraries (no CDN needed; only map tiles load at runtime) -->
+  <script src="vendor/leaflet/leaflet.js"></script>
+  <script src="vendor/leaflet-velocity/leaflet-velocity.min.js"></script>
+  <script src="js/current-field.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,82 @@
+name: Deploy to GitHub Pages
+
+# Publishes the static site (index.html at the repo root) to GitHub Pages.
+# Runs on pushes to this branch and can be triggered manually.
+on:
+  push:
+    branches:
+      - claude/vigilant-bardeen-49708v
+    paths-ignore:
+      # The job commits refreshed data + poster; ignore them so that commit
+      # doesn't retrigger the workflow.
+      - "poster.png"
+      - "data/gulf-currents.json"
+  workflow_dispatch:
+  schedule:
+    # Refresh the HYCOM current data daily (06:30 UTC).
+    - cron: "30 6 * * *"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Fetch real HYCOM current data
+        # Runs on the GitHub-hosted runner (open internet) and writes
+        # data/gulf-currents.json. If every source is unavailable, the deploy
+        # still proceeds and the page falls back to the procedural field.
+        run: node tools/fetch-currents.js || echo "::warning::HYCOM fetch failed; site will use the procedural fallback field"
+
+      - name: Render real-data poster
+        # Render poster.png from the fetched data and commit it back so the
+        # social/preview image always reflects the current map. paths-ignore
+        # above prevents this commit from retriggering the workflow.
+        run: |
+          npm install --no-save sharp >/dev/null 2>&1 || true
+          node tools/render-preview.js > /tmp/preview.svg
+          node -e "require('sharp')('/tmp/preview.svg').resize(1200).png().toFile('poster.png').then(i=>console.log('poster',i.width+'x'+i.height))" || echo "::warning::poster render skipped"
+          # node_modules was only needed to render the poster; keep it out of the deploy.
+          rm -rf node_modules package-lock.json
+          # Commit refreshed data + poster so the last-good real data persists.
+          git add -- data/gulf-currents.json poster.png 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit -m "Update HYCOM current data + poster [skip ci]"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          # Auto-enable Pages (Actions source) if it isn't enabled yet.
+          enablement: true
+
+      - name: Upload site artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
