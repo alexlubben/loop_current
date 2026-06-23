@@ -14,11 +14,16 @@
   //                 hard maxBounds wall and a minZoom floor computed from it, the
   //                 viewport can never extend past it, so the grid edge (and its
   //                 faint particle fringe) stays off-screen.
-  //   DEFAULT_VIEW  the editorial frame shown on load: the Gulf of Mexico, the
-  //                 Yucatán inflow, the Loop Current apex, the western eddies,
-  //                 and the Florida Straits — cropped well before the edge.
-  var SAFE_BOUNDS = L.latLngBounds([19.5, -96.5], [30.5, -78.5]);
-  var DEFAULT_VIEW = L.latLngBounds([20.0, -96.0], [30.0, -79.0]);
+  //   DEFAULT_VIEW  the editorial frame shown on load: the whole Gulf basin,
+  //                 roughly centered on 25.41, -90.24 — the western eddies and
+  //                 Texas/Mexico shelf on the left, the Yucatán inflow and Cuba
+  //                 below, the Loop Current apex in the middle, and the Florida
+  //                 Straits on the right. The basin is ringed by land (Texas,
+  //                 Mexico, Yucatán, Cuba, Florida), which masks the data's grid
+  //                 edge on nearly every side, so the frame can sit close to the
+  //                 real data extent without the rectangular edge ever showing.
+  var SAFE_BOUNDS = L.latLngBounds([18.8, -97.8], [31.4, -78.0]);
+  var DEFAULT_VIEW = L.latLngBounds([19.2, -97.5], [31.0, -78.4]);
 
   var map = L.map("map", {
     maxZoom: 9,
