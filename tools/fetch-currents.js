@@ -32,12 +32,22 @@ const path = require("path");
 const BBOX = { west: -99.0, east: -58.0, south: 8.0, north: 42.0 };
 const STRIDE = 2; // downsample (1/25deg -> ~1/12deg) to keep the payload light
 
+// "Broad enough" bar: a dataset must reach down into the Caribbean, up past Cape
+// Hatteras into the North Atlantic, and east of the Bahamas before we treat it as
+// covering the whole Caribbean Current -> Loop Current -> Gulf Stream corridor.
+// A Gulf-only dataset (e.g. hycom_gom310D, which stops near -76E / 18N) fails this
+// bar and is only used as a fallback when nothing broader is reachable. This is
+// what lets the map stay populated when the reader zooms out past the Gulf.
+const BROAD = { south: 14.0, north: 36.0, west: -92.0, east: -64.0 };
+
 const UA =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) " +
   "Chrome/124.0 Safari/537.36 loop-current-fetch/1.0";
 
-// Known-good datasets, tried directly (no search needed) before discovery.
-// hycom_gom310D = NRL HYCOM 1/25deg Gulf of Mexico — high-res, Gulf-specific.
+// Known-good datasets, probed directly (no search needed) before discovery.
+// hycom_gom310D = NRL HYCOM 1/25deg Gulf of Mexico — high-res but Gulf-ONLY, so
+// it is kept only as a narrow fallback; coverage scoring prefers a broader,
+// basin-scale model (global HYCOM/RTOFS/OSCAR) found via discovery below.
 const DIRECT = [
   { base: "https://coastwatch.pfeg.noaa.gov/erddap", id: "hycom_gom310D" }
 ];
@@ -53,8 +63,10 @@ const SERVERS = [
   "https://coastwatch.pfeg.noaa.gov/erddap",
   "https://pae-paha.pacioos.hawaii.edu/erddap"
 ];
-const SEARCH_TERMS = ["hycom", "rtofs", "current"];
-const MAX_CANDIDATES_PER_SERVER = 12;
+// Search terms tuned to surface basin-scale / global surface-current models
+// (which cover the whole western-Atlantic corridor) alongside regional ones.
+const SEARCH_TERMS = ["hycom", "rtofs", "oscar", "global current", "current"];
+const MAX_CANDIDATES_PER_SERVER = 16;
 
 // Candidate eastward/northward velocity variable name pairs, in priority order.
 const UV_PAIRS = [
@@ -153,7 +165,10 @@ function indexRange(axis, min, max) {
 
 const toSigned = (lon) => (lon > 180 ? lon - 360 : lon);
 
-async function tryDataset(base, id) {
+// --- Cheap probe: figure out whether a dataset has u/v currents over the BBOX
+// and HOW MUCH of the BBOX it actually spans, WITHOUT pulling the heavy data
+// grid. Returns everything fetchProbed() needs plus a `coverage` summary.
+async function probeDataset(base, id) {
   const meta = await introspect(base, id);
   const latDim = meta.dims.find((d) => d.role === "lat");
   const lonDim = meta.dims.find((d) => d.role === "lon");
@@ -173,6 +188,27 @@ async function tryDataset(base, id) {
   const lonIdx = indexRange(lon, west, east);
   if (!latIdx || !lonIdx) throw new Error("bbox not covered");
 
+  // Actual covered extent (signed lon) of the part of this dataset inside the BBOX.
+  const latVals = lat.slice(latIdx[0], latIdx[1] + 1);
+  const lonVals = lon.slice(lonIdx[0], lonIdx[1] + 1).map(toSigned);
+  const cs = Math.min(...latVals), cn = Math.max(...latVals);
+  const cw = Math.min(...lonVals), ce = Math.max(...lonVals);
+  const coverage = {
+    south: cs, north: cn, west: cw, east: ce,
+    // fraction of the target box spanned, in each axis and overall (area).
+    latFrac: (cn - cs) / (BBOX.north - BBOX.south),
+    lonFrac: (ce - cw) / (BBOX.east - BBOX.west),
+    get area() { return this.latFrac * this.lonFrac; },
+    // does it reach the Caribbean / North Atlantic / mid-Atlantic corners?
+    broad: cs <= BROAD.south && cn >= BROAD.north && cw <= BROAD.west && ce >= BROAD.east
+  };
+
+  return { base, id, dims: meta.dims, latIdx, lonIdx, uVar, vVar, coverage };
+}
+
+// --- Heavy fetch: pull the actual u/v grid for an already-probed dataset.
+async function fetchProbed(p) {
+  const { base, id, dims, latIdx, lonIdx, uVar, vVar } = p;
   // Build an index selector respecting the dataset's actual dimension order.
   const selFor = (d) => {
     switch (d.role) {
@@ -183,7 +219,7 @@ async function tryDataset(base, id) {
       default: return "[0]";
     }
   };
-  const sel = meta.dims.map(selFor).join("");
+  const sel = dims.map(selFor).join("");
   const url = `${base}/griddap/${id}.json?${uVar}${sel},${vVar}${sel}`;
   console.log(`   query: ${url}`);
 
@@ -241,25 +277,41 @@ function buildGrid(resp, uVar, vVar, source) {
   const outfile = process.argv[2] ||
     path.join(__dirname, "..", "data", "gulf-currents.json");
 
-  let result = null;
+  // We "shop" across sources: a dataset that covers the whole corridor (broad)
+  // wins immediately; otherwise we keep the widest partial one as a fallback so
+  // a Gulf-only source never beats a basin-scale one, and we never regress.
+  let chosen = null;     // first dataset that clears the BROAD bar
+  let fallback = null;   // widest sub-regional dataset seen so far
 
-  // 1) Try the known-good datasets directly (most reliable path).
+  const describe = (c) =>
+    `lat ${c.south.toFixed(1)}..${c.north.toFixed(1)}, ` +
+    `lon ${c.west.toFixed(1)}..${c.east.toFixed(1)} ` +
+    `(${(c.area * 100).toFixed(0)}% of target box)`;
+
+  // Probe one candidate; returns true once a broad-enough dataset is locked in.
+  const consider = async (base, id) => {
+    const p = await probeDataset(base, id);
+    const c = p.coverage;
+    console.log(`   coverage ${describe(c)}${c.broad ? "  [BROAD]" : ""}`);
+    if (c.broad) { chosen = p; return true; }
+    if (!fallback || c.area > fallback.coverage.area) fallback = p;
+    return false;
+  };
+
+  // 1) Probe the known-good direct datasets first.
   for (const ds of DIRECT) {
     try {
       console.log(`\n#### Direct: ${ds.id} @ ${ds.base}`);
-      result = await tryDataset(ds.base, ds.id);
-      console.log(`   OK: using ${ds.id}`);
-      break;
+      if (await consider(ds.base, ds.id)) break;
     } catch (e) {
       console.log(`   skip: ${e.message}`);
     }
   }
 
-  // 2) Otherwise, discover a dataset by searching each server.
+  // 2) Discover datasets by searching each server, still looking for a broad one.
   outer:
-  for (const base of result ? [] : SERVERS) {
+  for (const base of chosen ? [] : SERVERS) {
     console.log(`\n#### Server: ${base}`);
-    // Collect candidate dataset IDs via search.
     const ids = [];
     for (const term of SEARCH_TERMS) {
       try {
@@ -278,21 +330,30 @@ function buildGrid(resp, uVar, vVar, source) {
       tried++;
       try {
         console.log(`-- ${id}`);
-        result = await tryDataset(base, id);
-        console.log(`   OK: using ${id}`);
-        break outer;
+        if (await consider(base, id)) break outer;
       } catch (e) {
         console.log(`   skip: ${e.message}`);
       }
     }
   }
 
-  if (!result) {
+  // Prefer the broad dataset; otherwise fall back to the widest partial one.
+  const winner = chosen || fallback;
+  if (!winner) {
     // Leave any existing (last-good) data file untouched so a transient outage
     // doesn't downgrade the deployed map to the procedural fallback.
-    console.error("\nNo ERDDAP dataset yielded Gulf current data; keeping existing data file if present.");
+    console.error("\nNo ERDDAP dataset yielded current data; keeping existing data file if present.");
     process.exit(1);
   }
+
+  console.log(
+    chosen
+      ? `\n==> Using BROAD dataset ${winner.id} — ${describe(winner.coverage)}`
+      : `\n==> No basin-wide dataset reachable; using widest available ` +
+        `${winner.id} — ${describe(winner.coverage)}`
+  );
+
+  const result = await fetchProbed(winner);
 
   fs.mkdirSync(path.dirname(outfile), { recursive: true });
   fs.writeFileSync(outfile, JSON.stringify(result));
