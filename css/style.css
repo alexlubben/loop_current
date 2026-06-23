@@ -86,19 +86,16 @@ html, body {
   text-transform: uppercase;
 }
 
-/* ---- Data-source disclaimer ----
-   Sits just above the Leaflet OSM/CARTO attribution bar (also bottom-right) so
-   the two credit lines stack instead of overlapping. */
-.disclaimer {
+/* ---- Data-source credit ---- */
+.source-credit {
   position: absolute;
   right: 8px;
   bottom: 30px;
   z-index: 500;
+  margin: 0;
   font-size: 10px;
+  font-style: italic;
   color: #9db8d2;
-  background: rgba(8, 22, 38, 0.55);
-  padding: 2px 7px;
-  border-radius: 5px;
   pointer-events: none;
 }
 

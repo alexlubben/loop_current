@@ -148,17 +148,12 @@
   });
   velocityLayer.addTo(map);
 
-  // Credit line that updates to reflect what's actually on screen.
-  var credit = document.getElementById("credit");
-  function setCredit(text) { if (credit) credit.textContent = text; }
-
   // Prefer REAL HYCOM data (data/gulf-currents.json — a fixed HYCOM GOFS 3.1
   // GLBy0.08 surface snapshot, 2024-08-28; see scripts/convert_hycom.py for
   // provenance). Fall back to the procedural field if it isn't there or won't
   // load, so the animation always plays.
   function useProcedural() {
     velocityLayer.setData(window.GulfCurrentField.build());
-    setCredit("Illustrative flow field");
   }
 
   fetch("data/gulf-currents.json", { cache: "no-cache" })
@@ -166,19 +161,6 @@
     .then(function (data) {
       if (!Array.isArray(data) || data.length < 2) throw new Error("bad data");
       velocityLayer.setData(data);
-      // Show the snapshot date in the credit. For a recent (live) feed show the
-      // full date; for a historical reanalysis snapshot show month + year (e.g.
-      // "Jun 2010") so it's clearly not presented as today's forecast.
-      var h = data[0].header || {};
-      var when = h.refTime ? new Date(h.refTime) : null;
-      var date = "";
-      if (when && !isNaN(when)) {
-        var fresh = (Date.now() - when.getTime()) < 400 * 864e5;
-        date = when.toLocaleDateString(undefined, fresh ?
-          { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" } :
-          { year: "numeric", month: "short", timeZone: "UTC" });
-      }
-      setCredit("Surface currents: HYCOM GOFS 3.1" + (date ? " · " + date : ""));
     })
     .catch(useProcedural);
 })();
