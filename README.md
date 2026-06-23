@@ -27,6 +27,8 @@ by current speed.
 | `index.html` | The standalone, embeddable page |
 | `js/app.js` | Sets up the Leaflet map, basemap, and animated current layer |
 | `tools/fetch-currents.js` | Pulls real HYCOM currents from NOAA ERDDAP → `data/gulf-currents.json` |
+| `tools/fetch-hycom-tsis.py` | Pulls a fixed HYCOM-TSIS 2010 Gulf reanalysis snapshot → `data/gulf-currents.json` (see provenance below) |
+| `tools/test_convert_synthetic.py` | Offline test of the NetCDF→JSON conversion schema |
 | `js/current-field.js` | Generates the fallback (illustrative) velocity field |
 | `css/style.css` | Title, legend, and embed styling |
 | `vendor/` | Vendored Leaflet + leaflet-velocity (no CDN needed at runtime) |
@@ -58,6 +60,58 @@ You can run the fetch yourself anywhere with internet:
 ```bash
 node tools/fetch-currents.js   # writes data/gulf-currents.json
 ```
+
+## Current data snapshot — provenance
+
+`data/gulf-currents.json` currently holds a **fixed historical snapshot** of the
+**Loop Current Eddy "Franklin"** summer (it is *not* the daily ERDDAP feed above).
+The values come straight from the HYCOM-TSIS Gulf of Mexico reanalysis, converted
+into the leaflet-velocity u/v grid the page already renders.
+
+| Field | Value |
+| --- | --- |
+| Dataset | HYCOM-TSIS 1/25° Gulf of Mexico Reanalysis — `GOMb0.04/reanalysis`, dataset id `GOMb0.04-reanalysis-2010-3z`, experiment 01.0 |
+| Provider | COAPS / Florida State University, served via the HYCOM THREDDS Data Server |
+| Catalog | https://tds.hycom.org/thredds/catalogs/GOMb0.04/reanalysis.html |
+| OPeNDAP | https://tds.hycom.org/thredds/dodsC/GOMb0.04/reanalysis/2010/3z |
+| NCSS | https://ncss.hycom.org/thredds/ncss/grid/GOMb0.04/reanalysis/2010/3z |
+| Variables | `u` (eastward) / `v` (northward) sea-water velocity, surface (Depth = 0), m/s |
+| Snapshot date | **2010-06-15 00:00:00Z** (time axis `MT`, days since 1900-12-31) |
+| Bounding box | 98.0°W–77.04°W, 18.09°N–31.96°N (the model's native Gulf domain) |
+| Native grid | 525 × 385, 0.04° lon (even), Mercator lat (~0.034–0.038°) |
+| Access date | 2026-06-23 |
+
+Why 2010-06-15: Eddy Franklin shed from the Loop Current around 24 May 2010 and
+the Loop stayed strongly extended through that summer (full separation came in
+September). On this date the field shows the classic configuration — Yucatán
+Channel inflow, a tall clockwise (anticyclonic) Loop intrusion, an anticyclonic
+ring in the central Gulf (~88–89°W, 25–26°N), and a fast Florida-Straits exit.
+
+Processing notes (`tools/fetch-hycom-tsis.py`):
+- Only the surface level and single timestep are kept; HYCOM's land sentinel
+  (`2^126 ≈ 1.27e30`, which doesn't exactly equal the file's `_FillValue`
+  attribute) is mapped to JSON `null`, matching the original file's land coding.
+- Longitudes are already signed (−180…180); rows are written **N→S**, columns
+  **W→E**, with the NW corner as the origin (`lo1`/`la1`), exactly as the
+  renderer expects.
+- The native latitude axis is Mercator (non-uniform); because leaflet-velocity
+  assumes a uniform `dy`, u/v are resampled onto a uniform latitude axis
+  (nearest native row, which preserves the coastline mask and avoids the
+  several-cell drift a mean `dy` would introduce). Longitude is left untouched.
+
+Reproduce / re-point to another date:
+
+```bash
+pip install numpy netCDF4
+python3 tools/fetch-hycom-tsis.py introspect              # confirm vars/axes (needs network)
+python3 tools/fetch-hycom-tsis.py run --date 2010-07-15T00:00:00Z   # download + convert
+# or convert a NetCDF you already downloaded (e.g. an NCSS subset):
+python3 tools/fetch-hycom-tsis.py convert-file --file reanalysis_2010.nc4
+python3 tools/test_convert_synthetic.py                   # offline schema test
+```
+
+> The HYCOM THREDDS hosts (`tds.hycom.org`, `ncss.hycom.org`) must be reachable
+> for the live download stages; the `convert-file` and test stages run offline.
 
 ## Run / preview locally
 

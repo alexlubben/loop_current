@@ -4,3 +4,5 @@ preview.svg
 preview.png
 *.tgz
 .DS_Store
+__pycache__/
+.hycom-cache/
