@@ -31,6 +31,8 @@ by current speed.
 | `css/style.css` | Title, legend, and embed styling |
 | `vendor/` | Vendored Leaflet + leaflet-velocity (no CDN needed at runtime) |
 | `tools/render-preview.js` | Renders `poster.png`, a static streamline snapshot |
+| `tools/build-coastline.js` | Clips Natural Earth 10m coastlines → `data/coastline.json` |
+| `tools/render-svg.js` | Exports a **layered, print-ready SVG** (basemap + currents on separate layers) |
 | `.github/workflows/pages.yml` | Fetches data, renders the poster, deploys to Pages |
 
 The libraries are vendored locally, so at runtime the page only fetches the
@@ -128,6 +130,32 @@ Re-render the poster after changing anything:
 ```bash
 node tools/render-preview.js > preview.svg   # uses real data if present
 ```
+
+## Export a print-ready SVG (for a graphics editor)
+
+To hand the map to a print/graphics editor (Illustrator, Inkscape) as a static,
+fully editable vector with the **basemap and current lines on separate layers**:
+
+```bash
+node tools/build-coastline.js          # once: writes data/coastline.json (needs internet)
+node tools/render-svg.js > loop-current.svg
+```
+
+`loop-current.svg` opens with three named layers — **Basemap** (vector
+coastlines), **Current lines** (streamlines colored by speed), and **Labels**
+(title + credit) — that both Illustrator and Inkscape read as layers, so the
+editor can recolor, restyle, or delete each independently.
+
+Notes:
+- The **current lines** are the real HYCOM/NOAA snapshot, integrated into vector
+  streamlines (the static equivalent of the animated particles).
+- The **basemap** is editable vector coastlines from
+  [Natural Earth](https://www.naturalearthdata.com/) (10m) — not the raster
+  CARTO/Esri tiles used in the live map, so it's clean line art at any print
+  size. Both layers share one equirectangular projection, so they register
+  exactly.
+- `tools/build-coastline.js` only needs to run once (or when you change the
+  extent); `data/coastline.json` is checked in.
 
 ## Credits
 
