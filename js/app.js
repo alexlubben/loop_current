@@ -6,14 +6,14 @@
 
   // ----- Map ---------------------------------------------------------------
   var map = L.map("map", {
-    center: [24.4, -88.5],
-    zoom: 6,
-    minZoom: 5,
+    center: [26.0, -78.0],
+    zoom: 5,
+    minZoom: 3,               // zoom out far enough to take in the whole basin
     maxZoom: 9,
     zoomControl: true,
     attributionControl: true,
     scrollWheelZoom: false,   // don't hijack page scroll inside an article
-    maxBounds: [[14.0, -101.5], [33.5, -73.0]],
+    maxBounds: [[4.0, -103.0], [45.0, -54.0]],
     maxBoundsViscosity: 0.9
   });
 
