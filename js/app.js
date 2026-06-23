@@ -5,23 +5,25 @@
   "use strict";
 
   // ----- Map ---------------------------------------------------------------
-  // The velocity data is a finite rectangular grid (lon -98.0..-77.04, lat
-  // 18.09..31.96 — the HYCOM-TSIS GOMb0.04 Gulf-of-Mexico reanalysis). Two
-  // rectangles frame the view:
+  // The velocity data is a finite rectangular grid (lon -99.04..-58.0, lat
+  // 8.0..41.84 — the global HYCOM GOFS 3.1 GLBy0.08 surface frame, 2024-08-28).
+  // It now spans the Gulf of Mexico *and* the SE US Atlantic, so the Gulf Stream
+  // is visible turning the corner at Florida and running NE past Cape Hatteras.
+  // Two rectangles frame the view:
   //
-  //   SAFE_BOUNDS   a rectangle inset ~1.5-2deg from every data edge, used as a
-  //                 hard maxBounds wall so panning can't drag the rectangular
-  //                 grid edge (and its faint particle fringe) into view.
-  //   DEFAULT_VIEW  the editorial frame shown on load: the whole Gulf basin,
-  //                 roughly centered on 25.41, -90.24 — the western eddies and
-  //                 Texas/Mexico shelf on the left, the Yucatán inflow and Cuba
-  //                 below, the Loop Current apex in the middle, and the Florida
-  //                 Straits on the right. The basin is ringed by land (Texas,
-  //                 Mexico, Yucatán, Cuba, Florida), which masks the data's grid
-  //                 edge on nearly every side, so the frame can sit close to the
-  //                 real data extent without the rectangular edge ever showing.
-  var SAFE_BOUNDS = L.latLngBounds([18.8, -97.8], [31.4, -78.0]);
-  var DEFAULT_VIEW = L.latLngBounds([19.2, -97.5], [31.0, -78.4]);
+  //   SAFE_BOUNDS   a rectangle inset ~1deg from every data edge, used as a hard
+  //                 maxBounds wall so panning can't drag the rectangular grid
+  //                 edge (and its faint particle fringe) into view. Unlike the
+  //                 old Gulf-only frame, the east and north edges are now open
+  //                 Atlantic (no land to mask the edge), so the inset matters.
+  //   DEFAULT_VIEW  the editorial frame shown on load: the Gulf basin plus the
+  //                 Gulf Stream's path up the Atlantic seaboard — the Texas/
+  //                 Mexico shelf and western eddies on the left, the Yucatán
+  //                 inflow and Loop Current in the middle, Florida and the
+  //                 Straits exit, and the Gulf Stream running NE past Cape
+  //                 Hatteras toward the open Atlantic on the right.
+  var SAFE_BOUNDS = L.latLngBounds([13.0, -98.5], [41.0, -59.0]);
+  var DEFAULT_VIEW = L.latLngBounds([16.0, -97.5], [41.0, -60.0]);
 
   var map = L.map("map", {
     maxZoom: 9,
@@ -136,9 +138,10 @@
   var credit = document.getElementById("credit");
   function setCredit(text) { if (credit) credit.textContent = text; }
 
-  // Prefer REAL HYCOM data (data/gulf-currents.json, generated in CI from NOAA
-  // ERDDAP). Fall back to the procedural field if it isn't there or won't load,
-  // so the animation always plays.
+  // Prefer REAL HYCOM data (data/gulf-currents.json — a fixed HYCOM GOFS 3.1
+  // GLBy0.08 surface snapshot, 2024-08-28; see scripts/convert_hycom.py for
+  // provenance). Fall back to the procedural field if it isn't there or won't
+  // load, so the animation always plays.
   function useProcedural() {
     velocityLayer.setData(window.GulfCurrentField.build());
     setCredit("Illustrative flow field");
@@ -161,7 +164,7 @@
           { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" } :
           { year: "numeric", month: "short", timeZone: "UTC" });
       }
-      setCredit("Surface currents: HYCOM / NOAA" + (date ? " · " + date : ""));
+      setCredit("Surface currents: HYCOM GOFS 3.1" + (date ? " · " + date : ""));
     })
     .catch(useProcedural);
 })();

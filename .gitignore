@@ -6,3 +6,4 @@ preview.png
 .DS_Store
 __pycache__/
 .hycom-cache/
+tmp/
