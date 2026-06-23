@@ -89,7 +89,7 @@ html, body {
 /* ---- Data-source credit ---- */
 .source-credit {
   margin: 6px 0 0;
-  font-size: 9.5px;
+  font-size: 8px;
   font-style: italic;
   color: #9db8d2;
   pointer-events: none;
