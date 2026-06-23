@@ -14,11 +14,11 @@ current speed.
 ![Poster preview](poster.png)
 
 > **Data:** the animation is driven by **real HYCOM surface currents** for the
-> Gulf, fetched from NOAA ERDDAP in CI and refreshed daily (see "How the data
-> works"). If the data feed is ever unavailable, the page automatically falls
-> back to a hand-composed *illustrative* field so the animation always plays.
-> The on-map credit line shows which one is currently displayed and the data
-> date.
+> Gulf — a **fixed HYCOM-TSIS reanalysis snapshot from 2010-06-15**, the Loop
+> Current Eddy "Franklin" period (see "Current data snapshot" below). If the data
+> file is ever unavailable, the page automatically falls back to a hand-composed
+> *illustrative* field so the animation always plays. The on-map credit line
+> shows which one is displayed and the snapshot date.
 
 ## What's in here
 
@@ -27,11 +27,13 @@ current speed.
 | `index.html` | The standalone, embeddable page |
 | `js/app.js` | Sets up the Leaflet map, basemap, and animated current layer |
 | `tools/fetch-currents.js` | Pulls real HYCOM currents from NOAA ERDDAP → `data/gulf-currents.json` |
+| `tools/fetch-hycom-tsis.py` | Pulls a fixed HYCOM-TSIS 2010 Gulf reanalysis snapshot → `data/gulf-currents.json` (see provenance below) |
+| `tools/test_convert_synthetic.py` | Offline test of the NetCDF→JSON conversion schema |
 | `js/current-field.js` | Generates the fallback (illustrative) velocity field |
 | `css/style.css` | Title, legend, and embed styling |
 | `vendor/` | Vendored Leaflet, MapLibre GL + leaflet-maplibre-gl, leaflet-velocity (no CDN needed at runtime) |
 | `tools/render-preview.js` | Renders `poster.png`, a static streamline snapshot |
-| `.github/workflows/pages.yml` | Fetches data, renders the poster, deploys to Pages |
+| `.github/workflows/pages.yml` | Renders the poster and deploys the static site to Pages |
 
 The libraries are vendored locally, so at runtime the page only fetches the
 current-data JSON (same-origin) and the basemap vector tiles from
@@ -41,24 +43,80 @@ animation still plays.
 
 ## How the data works
 
-The Loop Current is always shifting, so the map shows a recent real snapshot
-rather than a hand-drawn cartoon:
+The map shows a **fixed real snapshot** of the Loop Current rather than a
+hand-drawn cartoon. The current field in `data/gulf-currents.json` is the
+HYCOM-TSIS 2010-06-15 reanalysis snapshot documented under
+"Current data snapshot" below.
 
-1. `tools/fetch-currents.js` runs in GitHub Actions (which has open internet),
-   searches NOAA/IOOS **ERDDAP** servers for HYCOM/RTOFS surface-current
-   datasets, auto-detects the eastward/northward velocity variables and grid
-   layout, subsets to the Gulf, and writes `data/gulf-currents.json` in the
-   leaflet-velocity u/v grid format.
-2. The Pages workflow bakes that JSON into the deployed site (so the browser
-   loads it **same-origin** — no CORS headaches in a CMS embed) and refreshes it
-   **daily** on a schedule.
-3. `js/app.js` loads the JSON; if it's missing, it uses the procedural fallback.
+1. `data/gulf-currents.json` is committed to the repo (a leaflet-velocity u/v
+   grid). The Pages workflow deploys it as-is, so the browser loads it
+   **same-origin** — no CORS headaches in a CMS embed. It is **not** refreshed
+   on a schedule, so the snapshot is stable.
+2. `js/app.js` loads the JSON; if it's missing, it uses the procedural fallback.
 
-You can run the fetch yourself anywhere with internet:
+Two tools can (re)generate the data file:
 
 ```bash
-node tools/fetch-currents.js   # writes data/gulf-currents.json
+# Fixed HYCOM-TSIS reanalysis snapshot (this is what currently ships):
+pip install numpy netCDF4
+python3 tools/fetch-hycom-tsis.py run --date 2010-06-15T00:00:00Z
+
+# Legacy: a live daily HYCOM/RTOFS field from NOAA/IOOS ERDDAP (basin-wide).
+# Self-discovering across ERDDAP servers; run anywhere with open internet:
+node tools/fetch-currents.js
 ```
+
+## Current data snapshot — provenance
+
+`data/gulf-currents.json` currently holds a **fixed historical snapshot** of the
+**Loop Current Eddy "Franklin"** summer (it is *not* the daily ERDDAP feed above).
+The values come straight from the HYCOM-TSIS Gulf of Mexico reanalysis, converted
+into the leaflet-velocity u/v grid the page already renders.
+
+| Field | Value |
+| --- | --- |
+| Dataset | HYCOM-TSIS 1/25° Gulf of Mexico Reanalysis — `GOMb0.04/reanalysis`, dataset id `GOMb0.04-reanalysis-2010-3z`, experiment 01.0 |
+| Provider | COAPS / Florida State University, served via the HYCOM THREDDS Data Server |
+| Catalog | https://tds.hycom.org/thredds/catalogs/GOMb0.04/reanalysis.html |
+| OPeNDAP | https://tds.hycom.org/thredds/dodsC/GOMb0.04/reanalysis/2010/3z |
+| NCSS | https://ncss.hycom.org/thredds/ncss/grid/GOMb0.04/reanalysis/2010/3z |
+| Variables | `u` (eastward) / `v` (northward) sea-water velocity, surface (Depth = 0), m/s |
+| Snapshot date | **2010-06-15 00:00:00Z** (time axis `MT`, days since 1900-12-31) |
+| Bounding box | 98.0°W–77.04°W, 18.09°N–31.96°N (the model's native Gulf domain) |
+| Native grid | 525 × 385, 0.04° lon (even), Mercator lat (~0.034–0.038°) |
+| Access date | 2026-06-23 |
+
+Why 2010-06-15: Eddy Franklin shed from the Loop Current around 24 May 2010 and
+the Loop stayed strongly extended through that summer (full separation came in
+September). On this date the field shows the classic configuration — Yucatán
+Channel inflow, a tall clockwise (anticyclonic) Loop intrusion, an anticyclonic
+ring in the central Gulf (~88–89°W, 25–26°N), and a fast Florida-Straits exit.
+
+Processing notes (`tools/fetch-hycom-tsis.py`):
+- Only the surface level and single timestep are kept; HYCOM's land sentinel
+  (`2^126 ≈ 1.27e30`, which doesn't exactly equal the file's `_FillValue`
+  attribute) is mapped to JSON `null`, matching the original file's land coding.
+- Longitudes are already signed (−180…180); rows are written **N→S**, columns
+  **W→E**, with the NW corner as the origin (`lo1`/`la1`), exactly as the
+  renderer expects.
+- The native latitude axis is Mercator (non-uniform); because leaflet-velocity
+  assumes a uniform `dy`, u/v are resampled onto a uniform latitude axis
+  (nearest native row, which preserves the coastline mask and avoids the
+  several-cell drift a mean `dy` would introduce). Longitude is left untouched.
+
+Reproduce / re-point to another date:
+
+```bash
+pip install numpy netCDF4
+python3 tools/fetch-hycom-tsis.py introspect              # confirm vars/axes (needs network)
+python3 tools/fetch-hycom-tsis.py run --date 2010-07-15T00:00:00Z   # download + convert
+# or convert a NetCDF you already downloaded (e.g. an NCSS subset):
+python3 tools/fetch-hycom-tsis.py convert-file --file reanalysis_2010.nc4
+python3 tools/test_convert_synthetic.py                   # offline schema test
+```
+
+> The HYCOM THREDDS hosts (`tds.hycom.org`, `ncss.hycom.org`) must be reachable
+> for the live download stages; the `convert-file` and test stages run offline.
 
 ## Run / preview locally
 
@@ -132,9 +190,9 @@ node tools/render-preview.js > preview.svg   # uses real data if present
 
 ## Credits
 
-- Current data: [HYCOM](https://www.hycom.org/) via
-  [NOAA ERDDAP](https://www.ncei.noaa.gov/erddap/) (the same model family the
-  GCOOS map uses)
+- Current data: HYCOM-TSIS 1/25° Gulf of Mexico Reanalysis
+  ([HYCOM](https://www.hycom.org/), COAPS / Florida State University), snapshot
+  2010-06-15 — see "Current data snapshot" for full provenance
 - Basemap: © [OpenFreeMap](https://openfreemap.org) ©
   [OpenMapTiles](https://www.openmaptiles.org/), data from
   [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors

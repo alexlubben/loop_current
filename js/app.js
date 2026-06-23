@@ -122,14 +122,18 @@
     .then(function (data) {
       if (!Array.isArray(data) || data.length < 2) throw new Error("bad data");
       velocityLayer.setData(data);
-      // Show the data date only when it's recent (the high-res Gulf archive is
-      // historical, so we don't want to imply it's today's forecast).
+      // Show the snapshot date in the credit. For a recent (live) feed show the
+      // full date; for a historical reanalysis snapshot show month + year (e.g.
+      // "Jun 2010") so it's clearly not presented as today's forecast.
       var h = data[0].header || {};
       var when = h.refTime ? new Date(h.refTime) : null;
-      var fresh = when && !isNaN(when) &&
-        (Date.now() - when.getTime()) < 400 * 864e5;
-      var date = fresh ?
-        when.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";
+      var date = "";
+      if (when && !isNaN(when)) {
+        var fresh = (Date.now() - when.getTime()) < 400 * 864e5;
+        date = when.toLocaleDateString(undefined, fresh ?
+          { year: "numeric", month: "short", day: "numeric", timeZone: "UTC" } :
+          { year: "numeric", month: "short", timeZone: "UTC" });
+      }
       setCredit("Surface currents: HYCOM / NOAA" + (date ? " · " + date : ""));
     })
     .catch(useProcedural);
