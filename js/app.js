@@ -17,9 +17,22 @@
     maxBoundsViscosity: 0.9
   });
 
-  // Esri "Firefly" world imagery — the dark, luminous satellite look used by
-  // the GCOOS reference map. Falls back to standard World Imagery if Firefly
-  // tiles are unavailable. Tiles load in the reader's browser at runtime.
+  // CARTO "Dark Matter" (no labels) — a flat, near-black canvas with no satellite
+  // texture, so the luminous cyan->white current streaks read with maximum
+  // contrast. This is the default basemap. Tiles load in the reader's browser at
+  // runtime. {r} resolves to "@2x" on retina displays.
+  var darkCanvas = L.tileLayer(
+    "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
+    {
+      maxZoom: 9,
+      subdomains: "abcd",
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    }
+  );
+
+  // Esri "Firefly" world imagery — the dark, luminous satellite look used by the
+  // GCOOS reference map. Kept as a toggle for readers who want the imagery view.
   var firefly = L.tileLayer(
     "https://fly.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Firefly/MapServer/tile/{z}/{y}/{x}",
     {
@@ -38,18 +51,10 @@
     }
   );
 
-  firefly.addTo(map);
-  // If Firefly tiles error out, swap to the standard imagery service.
-  var fireflyErrors = 0;
-  firefly.on("tileerror", function () {
-    if (++fireflyErrors === 4 && map.hasLayer(firefly)) {
-      map.removeLayer(firefly);
-      imagery.addTo(map);
-    }
-  });
+  darkCanvas.addTo(map);
 
   L.control.layers(
-    { "Imagery (Firefly)": firefly, "Imagery": imagery },
+    { "Dark canvas": darkCanvas, "Imagery (Firefly)": firefly, "Imagery": imagery },
     null,
     { position: "topright", collapsed: true }
   ).addTo(map);
@@ -59,8 +64,11 @@
   map.on("blur", function () { map.scrollWheelZoom.disable(); });
 
   // ----- Animated current layer -------------------------------------------
+  // Cool->hot luminous ramp. Slow water starts at a brighter, more saturated
+  // blue (#4f7fd6) rather than the old murky navy, so even gentle flow registers
+  // against the near-black canvas; the Loop Current core saturates to white.
   var colorScale = [
-    "#3a4f9a", "#2e6fb7", "#1f9ed1", "#39c2c9", "#7fe0c0",
+    "#4f7fd6", "#2e8fd0", "#1fb0d6", "#39c2c9", "#7fe0c0",
     "#bdeeb0", "#f2f1a0", "#f7d774", "#fff4cf", "#ffffff"
   ];
 
