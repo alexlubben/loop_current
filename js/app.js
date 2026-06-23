@@ -66,17 +66,25 @@
   //     the whole editorial frame still fits ("contain"). This is the nice Gulf
   //     framing on ordinary screens.
   //
-  // We show max(coverZoom, fitZoom): on normal aspect ratios fitZoom wins and
-  // you get the editorial Gulf frame; on extreme aspect ratios (very wide, or
+  // We show max(coverZoom, fitZoom - ZOOM_OUT): on normal aspect ratios the
+  // (zoomed-out) editorial frame wins; on extreme aspect ratios (very wide, or
   // tall/narrow phones) coverZoom wins and the view zooms in just enough to keep
   // every data edge out of frame, staying centered on the Gulf. fitBounds alone
   // (the previous approach) "contained" DEFAULT_VIEW and therefore over-showed
   // the unconstrained dimension on those extreme frames, revealing the edge.
+  //
+  // ZOOM_OUT pulls the editorial frame back a half zoom interval from the exact
+  // DEFAULT_VIEW fit so a touch more basin is in frame (the Yucatán Channel, the
+  // western Gulf, and part of the Gulf Stream all visible at once) without
+  // exposing the data edges: coverZoom is still the hard floor, and DEFAULT_VIEW
+  // is roughly half the linear size of SAFE_BOUNDS (coverZoom ~= fitZoom - 1), so
+  // fitZoom - 0.5 stays comfortably above the edge-safe floor on normal screens.
+  var ZOOM_OUT = 0.5;
   function reframe() {
     var coverZoom = map.getBoundsZoom(SAFE_BOUNDS, true);
     var fitZoom = map.getBoundsZoom(DEFAULT_VIEW, false);
     map.setMinZoom(coverZoom);
-    map.setView(DEFAULT_VIEW.getCenter(), Math.max(coverZoom, fitZoom), { animate: false });
+    map.setView(DEFAULT_VIEW.getCenter(), Math.max(coverZoom, fitZoom - ZOOM_OUT), { animate: false });
   }
   reframe();
   map.on("resize", reframe);
