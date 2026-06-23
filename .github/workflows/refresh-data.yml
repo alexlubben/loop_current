@@ -1,0 +1,47 @@
+name: Refresh current data (no deploy)
+
+# Regenerates data/gulf-currents.json from NOAA/IOOS ERDDAP and commits it back
+# to the branch it runs on — WITHOUT touching the github-pages environment, so it
+# can run on feature branches that the Pages deploy is locked away from. Use this
+# to verify tools/fetch-currents.js and refresh the data without publishing.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Fetch real HYCOM/RTOFS current data
+        # The runner has open internet. Writes data/gulf-currents.json; if every
+        # source is unreachable it exits non-zero and leaves the last-good file.
+        run: node tools/fetch-currents.js
+
+      - name: Render data poster
+        run: |
+          npm install --no-save sharp >/dev/null 2>&1 || true
+          node tools/render-preview.js > /tmp/preview.svg
+          node -e "require('sharp')('/tmp/preview.svg').resize(1200).png().toFile('poster.png').then(i=>console.log('poster',i.width+'x'+i.height))" || echo "::warning::poster render skipped"
+          rm -rf node_modules package-lock.json
+
+      - name: Commit refreshed data + poster
+        run: |
+          git add -- data/gulf-currents.json poster.png 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git commit -m "Refresh current data + poster [skip ci]"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          else
+            echo "No data changes to commit."
+          fi
