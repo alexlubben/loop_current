@@ -27,7 +27,7 @@
 
   var map = L.map("map", {
     maxZoom: 9,
-    zoomControl: true,
+    zoomControl: false,
     attributionControl: true,
     scrollWheelZoom: false,   // don't hijack page scroll inside an article
     maxBounds: SAFE_BOUNDS,
@@ -46,10 +46,6 @@
 
   // Frame the default editorial view.
   map.fitBounds(DEFAULT_VIEW);
-
-  // Move the +/- zoom control to the top-right so it doesn't sit on top of the
-  // "Loop Current" title card in the top-left corner.
-  map.zoomControl.setPosition("topright");
 
   // ----- Basemap (licensed, commercially safe) -----------------------------
   // OpenFreeMap (https://openfreemap.org) — a fully open-source tile service
