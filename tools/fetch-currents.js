@@ -24,8 +24,12 @@
 const fs = require("fs");
 const path = require("path");
 
-// Gulf of Mexico + a slice of the Atlantic so the Gulf Stream has an exit.
-const BBOX = { west: -98.5, east: -76.0, south: 17.5, north: 31.0 };
+// Broad western-Atlantic / Gulf domain: the Caribbean Sea (where the Caribbean
+// Current feeds in), the whole Gulf of Mexico, and the Gulf Stream running up
+// the U.S. East Coast and out into the North Atlantic. Datasets that only cover
+// part of this box (e.g. the Gulf-specific HYCOM) are clipped automatically by
+// indexRange(), so a wider box never breaks the Gulf-only sources.
+const BBOX = { west: -99.0, east: -58.0, south: 8.0, north: 42.0 };
 const STRIDE = 2; // downsample (1/25deg -> ~1/12deg) to keep the payload light
 
 const UA =
