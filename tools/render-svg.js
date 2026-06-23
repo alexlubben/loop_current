@@ -131,30 +131,109 @@ function color(speed) {
   return scale[Math.round(t * (scale.length - 1))];
 }
 
-var rng = (function () { var s = 12345; return function () { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }; })();
-var N = 3200, STEPS = 110, DT = 0.12;
-var lonMin = H.lo1, lonMax = H.lo1 + (H.nx - 1) * H.dx;
-var latMax = H.la1, latMin = H.la1 - (H.ny - 1) * H.dy;
-var lines = [];
-for (var n = 0; n < N; n++) {
-  var lon = lonMin + rng() * (lonMax - lonMin);
-  var lat = latMin + rng() * (latMax - latMin);
-  var pts = [], spds = [];
-  for (var s = 0; s < STEPS; s++) {
-    var vel = sample(lon, lat);
-    if (!vel) break;
-    var spd = Math.hypot(vel[0], vel[1]);
-    if (spd < 0.02) break;
-    var p = px(lon, lat);
-    pts.push(p); spds.push(spd);
-    lon += vel[0] * DT / Math.cos(lat * Math.PI / 180);
-    lat += vel[1] * DT;
+// Evenly-spaced streamlines (occupancy-grid placement) — the cartographic way to
+// keep a flow map legible: regularly spaced lines that never bunch up or cross,
+// with the weak background flow dropped so only the real currents read. Tunables:
+var D_SEP = 24;       // target spacing between streamlines (px)
+var D_TEST = 12;      // stop a line when it comes this close to another (px)
+var STEP = 3;         // integration step length (px)
+var MAX_STEPS = 600;  // max steps per direction
+var MIN_LEN = 40;     // drop streamlines shorter than this (px)
+var SPEED_MIN = 0.10; // ignore flow slower than this — hides the cluttered drift
+
+var sx = W / (lon1 - lon0);     // px per degree lon
+var sy = Hpx / (lat1 - lat0);   // px per degree lat
+
+// One integration step of fixed pixel length along the flow; null if too slow /
+// off-grid. Returns lon/lat increments and the local speed.
+function flowStep(lon, lat, dir) {
+  var vel = sample(lon, lat);
+  if (!vel) return null;
+  var spd = Math.hypot(vel[0], vel[1]);
+  if (spd < SPEED_MIN) return null;
+  var vx = sx * vel[0] / Math.cos(lat * Math.PI / 180); // velocity in pixel space
+  var vy = -sy * vel[1];
+  var m = Math.hypot(vx, vy);
+  if (m < 1e-6) return null;
+  var k = (STEP * dir) / m;            // scale to STEP pixels in flow direction
+  return { dlon: (vx * k) / sx, dlat: -(vy * k) / sy, spd: spd };
+}
+
+// Occupancy grid for spacing checks (cell size = D_SEP).
+var gw = Math.ceil(W / D_SEP) + 1, gh = Math.ceil(Hpx / D_SEP) + 1;
+var grid = new Array(gw * gh);
+function addPoint(x, y) {
+  var idx = Math.floor(y / D_SEP) * gw + Math.floor(x / D_SEP);
+  (grid[idx] || (grid[idx] = [])).push([x, y]);
+}
+function nearOccupied(x, y, minDist) {
+  var ci = Math.floor(x / D_SEP), cj = Math.floor(y / D_SEP), md2 = minDist * minDist;
+  for (var a = -1; a <= 1; a++) for (var b = -1; b <= 1; b++) {
+    var gi = ci + a, gj = cj + b;
+    if (gi < 0 || gj < 0 || gi >= gw || gj >= gh) continue;
+    var cell = grid[gj * gw + gi];
+    if (!cell) continue;
+    for (var p = 0; p < cell.length; p++) {
+      var dx = cell[p][0] - x, dy = cell[p][1] - y;
+      if (dx * dx + dy * dy < md2) return true;
+    }
   }
-  if (pts.length > 6) {
-    var avg = spds.reduce(function (a, b) { return a + b; }, 0) / spds.length;
-    lines.push({ pts: pts, c: color(avg), w: 0.5 + avg * 1.4 });
+  return false;
+}
+
+// Grow a streamline through a seed, forward and backward, stopping at other lines.
+function grow(seed) {
+  function trace(dir) {
+    var lon = seed.lon, lat = seed.lat, out = [], spds = [];
+    for (var s = 0; s < MAX_STEPS; s++) {
+      var st = flowStep(lon, lat, dir);
+      if (!st) break;
+      lon += st.dlon; lat += st.dlat;
+      var p = px(lon, lat);
+      if (p[0] < 0 || p[1] < 0 || p[0] > W || p[1] > Hpx) break;
+      if (nearOccupied(p[0], p[1], D_TEST)) break;
+      out.push(p); spds.push(st.spd);
+    }
+    return { out: out, spds: spds };
+  }
+  var f = trace(1), b = trace(-1);
+  var sp = px(seed.lon, seed.lat);
+  return {
+    pts: b.out.slice().reverse().concat([sp], f.out),
+    spds: b.spds.slice().reverse().concat([seed.spd], f.spds)
+  };
+}
+
+// Candidate seeds on a D_SEP grid, strongest flow first so the Loop Current jet
+// gets placed as one clean, continuous line before weaker flow fills in around it.
+var seeds = [];
+for (var gy = D_SEP / 2; gy < Hpx; gy += D_SEP) {
+  for (var gx = D_SEP / 2; gx < W; gx += D_SEP) {
+    var slon = lon0 + (gx / W) * (lon1 - lon0);
+    var slat = lat1 - (gy / Hpx) * (lat1 - lat0);
+    var vel = sample(slon, slat);
+    if (!vel) continue;
+    var spd = Math.hypot(vel[0], vel[1]);
+    if (spd < SPEED_MIN) continue;
+    seeds.push({ lon: slon, lat: slat, spd: spd, x: gx, y: gy });
   }
 }
+seeds.sort(function (a, b) { return b.spd - a.spd; });
+
+var lines = [];
+seeds.forEach(function (seed) {
+  if (nearOccupied(seed.x, seed.y, D_SEP)) return;     // too close to an existing line
+  var line = grow(seed);
+  var len = 0;
+  for (var i = 1; i < line.pts.length; i++) {
+    var dx = line.pts[i][0] - line.pts[i - 1][0], dy = line.pts[i][1] - line.pts[i - 1][1];
+    len += Math.hypot(dx, dy);
+  }
+  if (len < MIN_LEN) return;
+  line.pts.forEach(function (p) { addPoint(p[0], p[1]); });
+  var avg = line.spds.reduce(function (a, b) { return a + b; }, 0) / line.spds.length;
+  lines.push({ pts: line.pts, c: color(avg), w: 1.0 + 1.8 * Math.min(1, avg / MAXV) });
+});
 
 // ----- Emit SVG ------------------------------------------------------------
 var date = H.refTime ? new Date(H.refTime).toISOString().slice(0, 10) : "";

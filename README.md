@@ -156,6 +156,10 @@ Notes:
   exactly.
 - `tools/build-coastline.js` only needs to run once (or when you change the
   extent); `data/coastline.json` is checked in.
+- The currents are drawn as **evenly-spaced streamlines** (regularly spaced so
+  they stay readable, with weak background flow dropped). To make them denser or
+  sparser, change `D_SEP` near the top of `tools/render-svg.js` (smaller = more
+  lines); `SPEED_MIN` controls how much slow flow is hidden.
 
 ## Credits
 
