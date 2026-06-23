@@ -30,7 +30,18 @@ const path = require("path");
 // part of this box (e.g. the Gulf-specific HYCOM) are clipped automatically by
 // indexRange(), so a wider box never breaks the Gulf-only sources.
 const BBOX = { west: -99.0, east: -58.0, south: 8.0, north: 42.0 };
-const STRIDE = 2; // downsample (1/25deg -> ~1/12deg) to keep the payload light
+
+// Instead of a fixed stride (which made a fine, basin-scale grid a huge, slow
+// ERDDAP download), pick the stride per dataset so the subset lands near this
+// many points. Keeps the payload light AND the server-side request fast no
+// matter the source's native resolution (1/25deg Gulf vs 1/12deg global etc.).
+const TARGET_POINTS = 30000;
+
+// Overall wall-clock budget for source discovery. ERDDAP servers can be slow or
+// flaky; once this elapses we stop probing and use the best dataset found so far
+// rather than letting the fetch step drag on. Bounded by per-request timeouts on
+// top of this, so total runtime stays a few minutes at worst.
+const DEADLINE_MS = 210000; // 3.5 min
 
 // "Broad enough" bar: a dataset must reach down into the Caribbean, up past Cape
 // Hatteras into the North Atlantic, and east of the Bahamas before we treat it as
@@ -82,14 +93,16 @@ const UV_PAIRS = [
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // fetch JSON with retries/backoff — handles ERDDAP servers (esp. CoastWatch)
-// that intermittently return 403/5xx from a WAF.
-async function getJSON(url, attempts = 2) {
+// that intermittently return 403/5xx from a WAF. `timeout` is per attempt: the
+// probe phase uses a short one so a slow/blocked server is abandoned quickly,
+// while the final data download gets longer.
+async function getJSON(url, { attempts = 2, timeout = 25000 } = {}) {
   let lastErr;
   for (let i = 0; i < attempts; i++) {
     try {
       const res = await fetch(url, {
         headers: { "User-Agent": UA, "Accept": "application/json" },
-        signal: AbortSignal.timeout(25000)
+        signal: AbortSignal.timeout(timeout)
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
@@ -101,11 +114,14 @@ async function getJSON(url, attempts = 2) {
   throw lastErr;
 }
 
+// Short, fail-fast options for the discovery/probe phase.
+const PROBE = { attempts: 2, timeout: 12000 };
+
 // --- ERDDAP search: return griddap dataset IDs matching a term ---------------
 async function searchDatasets(base, term) {
   const url = `${base}/search/index.json?searchFor=${encodeURIComponent(term)}` +
               `&page=1&itemsPerPage=50`;
-  const j = await getJSON(url);
+  const j = await getJSON(url, PROBE);
   const cols = j.table.columnNames;
   const idIdx = cols.indexOf("Dataset ID");
   const gridIdx = cols.indexOf("griddap");
@@ -120,7 +136,7 @@ async function searchDatasets(base, term) {
 // --- Dataset introspection ---------------------------------------------------
 // Returns { dims:[{name,role}], vars:Map(name->units) }
 async function introspect(base, id) {
-  const info = await getJSON(`${base}/info/${id}/index.json`);
+  const info = await getJSON(`${base}/info/${id}/index.json`, PROBE);
   const cols = info.table.columnNames;
   const RT = cols.indexOf("Row Type");
   const VN = cols.indexOf("Variable Name");
@@ -151,7 +167,7 @@ function pickUV(vars) {
 }
 
 async function getAxis(base, id, name) {
-  const j = await getJSON(`${base}/griddap/${id}.json?${encodeURIComponent(name)}`);
+  const j = await getJSON(`${base}/griddap/${id}.json?${encodeURIComponent(name)}`, PROBE);
   return j.table.rows.map((row) => row[0]);
 }
 
@@ -209,13 +225,21 @@ async function probeDataset(base, id) {
 // --- Heavy fetch: pull the actual u/v grid for an already-probed dataset.
 async function fetchProbed(p) {
   const { base, id, dims, latIdx, lonIdx, uVar, vVar } = p;
+  // Pick a stride so the subset lands near TARGET_POINTS regardless of the
+  // dataset's native resolution — keeps both the payload and the server-side
+  // ERDDAP request small (a fixed stride made fine global grids huge and slow).
+  const nLat = latIdx[1] - latIdx[0] + 1, nLon = lonIdx[1] - lonIdx[0] + 1;
+  const stride = Math.max(1, Math.ceil(Math.sqrt((nLat * nLon) / TARGET_POINTS)));
+  console.log(`   native ${nLon}x${nLat} over box -> stride ${stride} ` +
+              `(~${Math.round((nLat / stride) * (nLon / stride))} pts)`);
+
   // Build an index selector respecting the dataset's actual dimension order.
   const selFor = (d) => {
     switch (d.role) {
       case "time": return "[last]";
       case "depth": return "[0]"; // surface
-      case "lat": return `[${latIdx[0]}:${STRIDE}:${latIdx[1]}]`;
-      case "lon": return `[${lonIdx[0]}:${STRIDE}:${lonIdx[1]}]`;
+      case "lat": return `[${latIdx[0]}:${stride}:${latIdx[1]}]`;
+      case "lon": return `[${lonIdx[0]}:${stride}:${lonIdx[1]}]`;
       default: return "[0]";
     }
   };
@@ -223,7 +247,7 @@ async function fetchProbed(p) {
   const url = `${base}/griddap/${id}.json?${uVar}${sel},${vVar}${sel}`;
   console.log(`   query: ${url}`);
 
-  const resp = await getJSON(url);
+  const resp = await getJSON(url, { attempts: 2, timeout: 45000 });
   return buildGrid(resp, uVar, vVar, `${id} via ${base}`);
 }
 
@@ -283,6 +307,9 @@ function buildGrid(resp, uVar, vVar, source) {
   let chosen = null;     // first dataset that clears the BROAD bar
   let fallback = null;   // widest sub-regional dataset seen so far
 
+  const startedAt = Date.now();
+  const outOfTime = () => Date.now() - startedAt > DEADLINE_MS;
+
   const describe = (c) =>
     `lat ${c.south.toFixed(1)}..${c.north.toFixed(1)}, ` +
     `lon ${c.west.toFixed(1)}..${c.east.toFixed(1)} ` +
@@ -309,8 +336,10 @@ function buildGrid(resp, uVar, vVar, source) {
   }
 
   // 2) Discover datasets by searching each server, still looking for a broad one.
+  //    Stop early once the time budget is spent and use the best dataset so far.
   outer:
   for (const base of chosen ? [] : SERVERS) {
+    if (outOfTime()) { console.log("\n(time budget spent; stopping discovery)"); break; }
     console.log(`\n#### Server: ${base}`);
     const ids = [];
     for (const term of SEARCH_TERMS) {
@@ -327,6 +356,7 @@ function buildGrid(resp, uVar, vVar, source) {
     let tried = 0;
     for (const id of ids) {
       if (tried >= MAX_CANDIDATES_PER_SERVER) break;
+      if (outOfTime()) { console.log("   (time budget spent; stopping discovery)"); break outer; }
       tried++;
       try {
         console.log(`-- ${id}`);
