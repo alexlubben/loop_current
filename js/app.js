@@ -23,7 +23,7 @@
   //                 Straits exit, and the Gulf Stream running NE past Cape
   //                 Hatteras toward the open Atlantic on the right.
   var SAFE_BOUNDS = L.latLngBounds([13.0, -98.5], [41.0, -59.0]);
-  var DEFAULT_VIEW = L.latLngBounds([16.0, -97.5], [41.0, -60.0]);
+  var DEFAULT_VIEW = L.latLngBounds([18.0, -96.0], [35.0, -73.0]);
 
   var map = L.map("map", {
     maxZoom: 9,
