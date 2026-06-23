@@ -87,7 +87,7 @@ html, body {
 }
 
 /* ---- Data-source credit ---- */
-.source-credit {
+.title-card .source-credit {
   margin: 6px 0 0;
   font-size: 8px;
   font-style: italic;
