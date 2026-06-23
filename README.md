@@ -13,12 +13,14 @@ current speed.
 
 ![Poster preview](poster.png)
 
-> **Data:** the animation is driven by **real HYCOM surface currents** for the
-> Gulf — a **fixed HYCOM-TSIS reanalysis snapshot from 2010-06-15**, the Loop
-> Current Eddy "Franklin" period (see "Current data snapshot" below). If the data
-> file is ever unavailable, the page automatically falls back to a hand-composed
-> *illustrative* field so the animation always plays. The on-map credit line
-> shows which one is displayed and the snapshot date.
+> **Data:** the animation is driven by **real HYCOM surface currents** — a
+> **fixed HYCOM GOFS 3.1 GLBy0.08 snapshot from 2024-08-28**, which spans the
+> Gulf of Mexico *and* the SE US Atlantic so the Gulf Stream is visible turning
+> the corner at Florida and running northeast past Cape Hatteras (the central
+> Gulf holds the anticyclonic ring **Eddy Denali**). See "Current data snapshot"
+> below. If the data file is ever unavailable, the page automatically falls back
+> to a hand-composed *illustrative* field so the animation always plays. The
+> on-map credit line shows which one is displayed and the snapshot date.
 
 ## What's in here
 
@@ -26,8 +28,9 @@ current speed.
 | --- | --- |
 | `index.html` | The standalone, embeddable page |
 | `js/app.js` | Sets up the Leaflet map, basemap, and animated current layer |
-| `tools/fetch-currents.js` | Pulls real HYCOM currents from NOAA ERDDAP → `data/gulf-currents.json` |
-| `tools/fetch-hycom-tsis.py` | Pulls a fixed HYCOM-TSIS 2010 Gulf reanalysis snapshot → `data/gulf-currents.json` (see provenance below) |
+| `scripts/convert_hycom.py` | Converts a HYCOM GOFS 3.1 GLBy0.08 surface NetCDF → `data/gulf-currents.json` (the snapshot that currently ships; see provenance below) |
+| `tools/fetch-currents.js` | Legacy: pulls real HYCOM currents from NOAA ERDDAP → `data/gulf-currents.json` |
+| `tools/fetch-hycom-tsis.py` | Legacy: pulls a fixed HYCOM-TSIS 2010 Gulf-only reanalysis snapshot → `data/gulf-currents.json` |
 | `tools/test_convert_synthetic.py` | Offline test of the NetCDF→JSON conversion schema |
 | `js/current-field.js` | Generates the fallback (illustrative) velocity field |
 | `css/style.css` | Title, legend, and embed styling |
@@ -43,9 +46,9 @@ animation still plays.
 
 ## How the data works
 
-The map shows a **fixed real snapshot** of the Loop Current rather than a
-hand-drawn cartoon. The current field in `data/gulf-currents.json` is the
-HYCOM-TSIS 2010-06-15 reanalysis snapshot documented under
+The map shows a **fixed real snapshot** of the Gulf and the Gulf Stream rather
+than a hand-drawn cartoon. The current field in `data/gulf-currents.json` is the
+HYCOM GOFS 3.1 GLBy0.08 2024-08-28 surface snapshot documented under
 "Current data snapshot" below.
 
 1. `data/gulf-currents.json` is committed to the repo (a leaflet-velocity u/v
@@ -57,8 +60,13 @@ HYCOM-TSIS 2010-06-15 reanalysis snapshot documented under
 Two tools can (re)generate the data file:
 
 ```bash
-# Fixed HYCOM-TSIS reanalysis snapshot (this is what currently ships):
+# Fixed HYCOM GOFS 3.1 GLBy0.08 snapshot (this is what currently ships).
+# Download the NetCDF from the NCSS URL in "Current data snapshot" below to
+# tmp/glb2024.nc, then convert:
 pip install numpy netCDF4
+python3 scripts/convert_hycom.py tmp/glb2024.nc data/gulf-currents.json
+
+# Legacy: a fixed HYCOM-TSIS 2010 Gulf-only reanalysis snapshot:
 python3 tools/fetch-hycom-tsis.py run --date 2010-06-15T00:00:00Z
 
 # Legacy: a live daily HYCOM/RTOFS field from NOAA/IOOS ERDDAP (basin-wide).
@@ -68,31 +76,36 @@ node tools/fetch-currents.js
 
 ## Current data snapshot — provenance
 
-`data/gulf-currents.json` currently holds a **fixed historical snapshot** of the
-**Loop Current Eddy "Franklin"** summer (it is *not* the daily ERDDAP feed above).
-The values come straight from the HYCOM-TSIS Gulf of Mexico reanalysis, converted
-into the leaflet-velocity u/v grid the page already renders.
+`data/gulf-currents.json` currently holds a **fixed snapshot** of the global
+HYCOM GOFS 3.1 product, cropped to the Gulf of Mexico and the SE US Atlantic so
+the Gulf Stream is in frame. The values come straight from the HYCOM GLBy0.08
+surface field, converted by `scripts/convert_hycom.py` into the leaflet-velocity
+u/v grid the page already renders.
 
 | Field | Value |
 | --- | --- |
-| Dataset | HYCOM-TSIS 1/25° Gulf of Mexico Reanalysis — `GOMb0.04/reanalysis`, dataset id `GOMb0.04-reanalysis-2010-3z`, experiment 01.0 |
-| Provider | COAPS / Florida State University, served via the HYCOM THREDDS Data Server |
-| Catalog | https://tds.hycom.org/thredds/catalogs/GOMb0.04/reanalysis.html |
-| OPeNDAP | https://tds.hycom.org/thredds/dodsC/GOMb0.04/reanalysis/2010/3z |
-| NCSS | https://ncss.hycom.org/thredds/ncss/grid/GOMb0.04/reanalysis/2010/3z |
-| Variables | `u` (eastward) / `v` (northward) sea-water velocity, surface (Depth = 0), m/s |
-| Snapshot date | **2010-06-15 00:00:00Z** (time axis `MT`, days since 1900-12-31) |
-| Bounding box | 98.0°W–77.04°W, 18.09°N–31.96°N (the model's native Gulf domain) |
-| Native grid | 525 × 385, 0.04° lon (even), Mercator lat (~0.034–0.038°) |
+| Dataset | HYCOM GOFS 3.1 — `GLBy0.08/expt_93.0` (global, 1/12°) |
+| Provider | HYCOM Consortium / U.S. Naval Oceanographic Office, served via the HYCOM THREDDS Data Server |
+| NCSS | `https://ncss.hycom.org/thredds/ncss/GLBy0.08/expt_93.0?var=water_u&var=water_v&north=42&south=8&west=261&east=302&horizStride=1&time=2024-08-28T00:00:00Z&vertCoord=0&addLatLon=true&accept=netcdf4` |
+| Variables | `water_u` (eastward) / `water_v` (northward) sea-water velocity, surface (Depth = 0), m/s |
+| Snapshot date | **2024-08-28 00:00:00Z** (time axis: hours since 2000-01-01) |
+| Bounding box | 99.04°W–58.0°W, 8.0°N–42.0°N (lon 261–302°E in the source 0–360° frame) |
+| Native grid | 514 × 851, 0.08° lon / 0.04° lat; subsampled to 172 × 142 at ~0.24° (lon every 3rd point, lat every 6th) |
 | Access date | 2026-06-23 |
 
-Why 2010-06-15: Eddy Franklin shed from the Loop Current around 24 May 2010 and
-the Loop stayed strongly extended through that summer (full separation came in
-September). On this date the field shows the classic configuration — Yucatán
-Channel inflow, a tall clockwise (anticyclonic) Loop intrusion, an anticyclonic
-ring in the central Gulf (~88–89°W, 25–26°N), and a fast Florida-Straits exit.
+Why 2024-08-28: this frame shows the anticyclonic ring **Eddy Denali** in the
+central Gulf alongside the classic configuration — Yucatán Channel inflow, the
+Loop Current, a fast Florida-Straits exit, and the Gulf Stream running northeast
+along the SE US coast and past Cape Hatteras into the open Atlantic.
 
-Processing notes (`tools/fetch-hycom-tsis.py`):
+Processing notes (`scripts/convert_hycom.py`):
+- Source longitudes are 0–360°E and are converted to signed −180…180°.
+- HYCOM's land/fill values (`> 1e4`) and NaNs are mapped to JSON `null`.
+- Rows are written **N→S**, columns **W→E**, with the NW corner as the origin
+  (`lo1`/`la1`).
+
+Legacy provenance (`tools/fetch-hycom-tsis.py`, the prior 2010 Gulf-only file
+preserved as `data/gulf-currents.2010.json`):
 - Only the surface level and single timestep are kept; HYCOM's land sentinel
   (`2^126 ≈ 1.27e30`, which doesn't exactly equal the file's `_FillValue`
   attribute) is mapped to JSON `null`, matching the original file's land coding.
@@ -190,9 +203,9 @@ node tools/render-preview.js > preview.svg   # uses real data if present
 
 ## Credits
 
-- Current data: HYCOM-TSIS 1/25° Gulf of Mexico Reanalysis
-  ([HYCOM](https://www.hycom.org/), COAPS / Florida State University), snapshot
-  2010-06-15 — see "Current data snapshot" for full provenance
+- Current data: HYCOM GOFS 3.1 `GLBy0.08/expt_93.0`
+  ([HYCOM](https://www.hycom.org/), HYCOM Consortium / U.S. Naval Oceanographic
+  Office), snapshot 2024-08-28 — see "Current data snapshot" for full provenance
 - Basemap: © [OpenFreeMap](https://openfreemap.org) ©
   [OpenMapTiles](https://www.openmaptiles.org/), data from
   [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors
