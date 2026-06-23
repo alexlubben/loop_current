@@ -68,7 +68,7 @@ html, body {
   height: 9px;
   border-radius: 5px;
   background: linear-gradient(to right,
-    #3a4f9a 0%, #2e6fb7 18%, #1f9ed1 34%, #39c2c9 48%,
+    #4f7fd6 0%, #2e8fd0 18%, #1fb0d6 34%, #39c2c9 48%,
     #7fe0c0 60%, #bdeeb0 72%, #f2f1a0 84%, #f7d774 93%, #ffffff 100%);
 }
 .legend .labels {
