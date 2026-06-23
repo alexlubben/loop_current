@@ -6,8 +6,9 @@
 
   // ----- Map ---------------------------------------------------------------
   var map = L.map("map", {
-    center: [26.0, -78.0],
-    zoom: 5,
+    center: [25.0, -87.0],    // heart of the Gulf / Loop Current core
+    zoom: 6,                  // close enough that the data's rectangular edge
+                              // (esp. over the open Atlantic) stays off-screen
     minZoom: 3,               // zoom out far enough to take in the whole basin
     maxZoom: 9,
     zoomControl: true,
@@ -16,6 +17,10 @@
     maxBounds: [[4.0, -103.0], [45.0, -54.0]],
     maxBoundsViscosity: 0.9
   });
+
+  // Move the +/- zoom control to the top-right so it doesn't sit on top of the
+  // "Loop Current" title card in the top-left corner.
+  map.zoomControl.setPosition("topright");
 
   // CARTO "Voyager" (no labels) — a clean, light cartographic canvas with light
   // blue water and pale land, the flat "water / land colors" newsroom look. This
