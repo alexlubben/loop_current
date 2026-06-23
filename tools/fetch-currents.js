@@ -63,20 +63,21 @@ const DIRECT = [
   { base: "https://coastwatch.pfeg.noaa.gov/erddap", id: "hycom_gom310D" }
 ];
 
-// ERDDAP servers to search if the direct datasets are unreachable. GCOOS and the
-// regional IOOS associations cover the Gulf and don't WAF-block CI runners the
-// way CoastWatch sometimes does.
+// ERDDAP servers to search. Ordered so the ones that actually host basin-scale /
+// global current models (CoastWatch's NRL global HYCOM, PacIOOS's global models)
+// are tried FIRST — that's where a broad dataset is found — with the Gulf/
+// regional IOOS servers after, and the historically slow TAMU server last.
 const SERVERS = [
-  "https://erddap.gcoos.org/erddap",
-  "https://gcoos5.geos.tamu.edu/erddap",
-  "https://erddap.caricoos.org/erddap",
-  "https://erddap.secoora.org/erddap",
   "https://coastwatch.pfeg.noaa.gov/erddap",
-  "https://pae-paha.pacioos.hawaii.edu/erddap"
+  "https://pae-paha.pacioos.hawaii.edu/erddap",
+  "https://erddap.gcoos.org/erddap",
+  "https://erddap.secoora.org/erddap",
+  "https://erddap.caricoos.org/erddap",
+  "https://gcoos5.geos.tamu.edu/erddap"
 ];
 // Search terms tuned to surface basin-scale / global surface-current models
 // (which cover the whole western-Atlantic corridor) alongside regional ones.
-const SEARCH_TERMS = ["hycom", "rtofs", "oscar", "global current", "current"];
+const SEARCH_TERMS = ["hycom", "rtofs", "oscar", "current"];
 const MAX_CANDIDATES_PER_SERVER = 16;
 
 // Candidate eastward/northward velocity variable name pairs, in priority order.
@@ -114,14 +115,17 @@ async function getJSON(url, { attempts = 2, timeout = 25000 } = {}) {
   throw lastErr;
 }
 
-// Short, fail-fast options for the discovery/probe phase.
+// Short, fail-fast options for the discovery/probe phase. Searches don't retry
+// (a dead/slow server shouldn't cost two timeouts per term); axis/info probes
+// retry once since those are the calls we actually depend on.
 const PROBE = { attempts: 2, timeout: 12000 };
+const SEARCH = { attempts: 1, timeout: 10000 };
 
 // --- ERDDAP search: return griddap dataset IDs matching a term ---------------
 async function searchDatasets(base, term) {
   const url = `${base}/search/index.json?searchFor=${encodeURIComponent(term)}` +
               `&page=1&itemsPerPage=50`;
-  const j = await getJSON(url, PROBE);
+  const j = await getJSON(url, SEARCH);
   const cols = j.table.columnNames;
   const idIdx = cols.indexOf("Dataset ID");
   const gridIdx = cols.indexOf("griddap");
@@ -301,11 +305,15 @@ function buildGrid(resp, uVar, vVar, source) {
   const outfile = process.argv[2] ||
     path.join(__dirname, "..", "data", "gulf-currents.json");
 
-  // We "shop" across sources: a dataset that covers the whole corridor (broad)
-  // wins immediately; otherwise we keep the widest partial one as a fallback so
-  // a Gulf-only source never beats a basin-scale one, and we never regress.
-  let chosen = null;     // first dataset that clears the BROAD bar
-  let fallback = null;   // widest sub-regional dataset seen so far
+  // We "shop" across sources: probe candidates cheaply, collect them ranked by
+  // how much of the corridor they cover, then DOWNLOAD them in that order until
+  // one actually returns data. Probing and downloading are separated so a single
+  // dataset that 500s on its data query (as some ERDDAP entries do) just moves us
+  // to the next candidate instead of crashing the run — and a Gulf-only source
+  // never wins while a broader one is fetchable.
+  const candidates = [];          // all probed datasets (with coverage)
+  const seen = new Set();         // dedupe base+id
+  let broadCount = 0;             // how many clear the BROAD bar
 
   const startedAt = Date.now();
   const outOfTime = () => Date.now() - startedAt > DEADLINE_MS;
@@ -315,34 +323,39 @@ function buildGrid(resp, uVar, vVar, source) {
     `lon ${c.west.toFixed(1)}..${c.east.toFixed(1)} ` +
     `(${(c.area * 100).toFixed(0)}% of target box)`;
 
-  // Probe one candidate; returns true once a broad-enough dataset is locked in.
+  // Probe one candidate and record it. Returns true once we have collected
+  // enough broad candidates to stop probing and start downloading.
   const consider = async (base, id) => {
+    const key = `${base}|${id}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
     const p = await probeDataset(base, id);
     const c = p.coverage;
     console.log(`   coverage ${describe(c)}${c.broad ? "  [BROAD]" : ""}`);
-    if (c.broad) { chosen = p; return true; }
-    if (!fallback || c.area > fallback.coverage.area) fallback = p;
-    return false;
+    candidates.push(p);
+    if (c.broad) broadCount++;
+    return broadCount >= 3; // a few broad options is plenty to try downloading
   };
 
   // 1) Probe the known-good direct datasets first.
   for (const ds of DIRECT) {
     try {
       console.log(`\n#### Direct: ${ds.id} @ ${ds.base}`);
-      if (await consider(ds.base, ds.id)) break;
+      await consider(ds.base, ds.id);
     } catch (e) {
       console.log(`   skip: ${e.message}`);
     }
   }
 
-  // 2) Discover datasets by searching each server, still looking for a broad one.
-  //    Stop early once the time budget is spent and use the best dataset so far.
+  // 2) Discover more datasets by searching each server, until we have a few
+  //    broad options or the time budget is spent.
   outer:
-  for (const base of chosen ? [] : SERVERS) {
+  for (const base of broadCount >= 3 ? [] : SERVERS) {
     if (outOfTime()) { console.log("\n(time budget spent; stopping discovery)"); break; }
     console.log(`\n#### Server: ${base}`);
     const ids = [];
     for (const term of SEARCH_TERMS) {
+      if (outOfTime()) break;
       try {
         const found = await searchDatasets(base, term);
         for (const id of found) if (!ids.includes(id)) ids.push(id);
@@ -367,26 +380,41 @@ function buildGrid(resp, uVar, vVar, source) {
     }
   }
 
-  // Prefer the broad dataset; otherwise fall back to the widest partial one.
-  const winner = chosen || fallback;
-  if (!winner) {
+  if (!candidates.length) {
     // Leave any existing (last-good) data file untouched so a transient outage
     // doesn't downgrade the deployed map to the procedural fallback.
     console.error("\nNo ERDDAP dataset yielded current data; keeping existing data file if present.");
     process.exit(1);
   }
 
-  console.log(
-    chosen
-      ? `\n==> Using BROAD dataset ${winner.id} — ${describe(winner.coverage)}`
-      : `\n==> No basin-wide dataset reachable; using widest available ` +
-        `${winner.id} — ${describe(winner.coverage)}`
-  );
+  // Rank: broad datasets first, then by how much of the box they cover. Download
+  // them in order until one succeeds — so a 500 on the best one falls through to
+  // the next rather than aborting the whole fetch.
+  candidates.sort((a, b) =>
+    (b.coverage.broad - a.coverage.broad) || (b.coverage.area - a.coverage.area));
 
-  const result = await fetchProbed(winner);
+  let result = null, used = null;
+  for (const p of candidates) {
+    try {
+      console.log(
+        `\n==> Trying ${p.coverage.broad ? "BROAD " : ""}dataset ${p.id} — ` +
+        `${describe(p.coverage)}`);
+      result = await fetchProbed(p);
+      used = p;
+      break;
+    } catch (e) {
+      console.log(`   download failed: ${e.message}`);
+    }
+  }
+
+  if (!result) {
+    console.error("\nEvery candidate failed to download; keeping existing data file if present.");
+    process.exit(1);
+  }
 
   fs.mkdirSync(path.dirname(outfile), { recursive: true });
   fs.writeFileSync(outfile, JSON.stringify(result));
   const kb = (fs.statSync(outfile).size / 1024).toFixed(0);
-  console.log(`\nWrote ${outfile} (${kb} KB) from ${result[0].header.source}`);
+  console.log(`\nWrote ${outfile} (${kb} KB) from ${result[0].header.source}` +
+    `${used.coverage.broad ? "" : "  (NOTE: sub-regional — no basin-wide source was reachable)"}`);
 })();
