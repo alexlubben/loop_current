@@ -6,14 +6,12 @@
 
   // ----- Map ---------------------------------------------------------------
   // The velocity data is a finite rectangular grid (lon -98.0..-77.04, lat
-  // 18.09..31.96 — the HYCOM-TSIS GOMb0.04 Gulf-of-Mexico reanalysis). To keep
-  // its hard rectangular edge from ever showing — at any screen aspect ratio,
-  // zoom, or pan — we lock the view *inside* the data:
+  // 18.09..31.96 — the HYCOM-TSIS GOMb0.04 Gulf-of-Mexico reanalysis). Two
+  // rectangles frame the view:
   //
-  //   SAFE_BOUNDS   a rectangle inset ~1.5-2deg from every data edge. With a
-  //                 hard maxBounds wall and a minZoom floor computed from it, the
-  //                 viewport can never extend past it, so the grid edge (and its
-  //                 faint particle fringe) stays off-screen.
+  //   SAFE_BOUNDS   a rectangle inset ~1.5-2deg from every data edge, used as a
+  //                 hard maxBounds wall so panning can't drag the rectangular
+  //                 grid edge (and its faint particle fringe) into view.
   //   DEFAULT_VIEW  the editorial frame shown on load: the whole Gulf basin,
   //                 roughly centered on 25.41, -90.24 — the western eddies and
   //                 Texas/Mexico shelf on the left, the Yucatán inflow and Cuba
@@ -34,18 +32,22 @@
     maxBoundsViscosity: 1.0   // hard wall: the view can't slip past the inset
   });
 
-  // Floor the zoom so that even fully zoomed out, SAFE_BOUNDS still *fills* the
-  // viewport (inside = true) — nothing outside it is ever visible, hence no data
-  // edge. Recompute on resize so embedded/responsive layouts stay safe; only the
-  // floor changes, so the reader's current view isn't yanked.
-  function updateConstraints() {
-    map.setMinZoom(map.getBoundsZoom(SAFE_BOUNDS, true));
+  // Re-frame the editorial view whenever the map's size changes, not just at
+  // load, so the basin stays centered at any frame size or aspect ratio.
+  //
+  // The minZoom floor uses getBoundsZoom(DEFAULT_VIEW) with inside = false
+  // ("contain"): the largest zoom at which the *whole* basin still fits the
+  // viewport. This guarantees the full basin is never clipped — on a wide frame
+  // the floor zooms out far enough to show all of it (Leaflet then keeps the
+  // view centered within maxBounds). The previous floor instead made SAFE_BOUNDS
+  // *fill* the viewport (inside = true), which on wide frames forced a zoom-in
+  // that clipped the top and bottom of the basin.
+  function reframe() {
+    map.setMinZoom(map.getBoundsZoom(DEFAULT_VIEW));
+    map.fitBounds(DEFAULT_VIEW);
   }
-  updateConstraints();
-  map.on("resize", updateConstraints);
-
-  // Frame the default editorial view.
-  map.fitBounds(DEFAULT_VIEW);
+  reframe();
+  map.on("resize", reframe);
 
   // ----- Basemap (licensed, commercially safe) -----------------------------
   // OpenFreeMap (https://openfreemap.org) — a fully open-source tile service
