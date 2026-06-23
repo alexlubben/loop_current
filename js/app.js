@@ -23,30 +23,52 @@
   //                 Straits exit, and the Gulf Stream running NE past Cape
   //                 Hatteras toward the open Atlantic on the right.
   var SAFE_BOUNDS = L.latLngBounds([13.0, -98.5], [41.0, -59.0]);
-  var DEFAULT_VIEW = L.latLngBounds([18.0, -96.0], [35.0, -73.0]);
+  var DEFAULT_VIEW = L.latLngBounds([20.0, -94.5], [33.0, -75.0]);
 
   var map = L.map("map", {
     maxZoom: 9,
     zoomControl: false,
     attributionControl: true,
     scrollWheelZoom: false,   // don't hijack page scroll inside an article
+    dragging: false,          // no drag-panning: the view is a fixed editorial frame
     maxBounds: SAFE_BOUNDS,
     maxBoundsViscosity: 1.0   // hard wall: the view can't slip past the inset
   });
 
+  // Belt-and-suspenders: ensure the drag handler is off even if some other code
+  // path re-enables it. In Leaflet the single `dragging` handler covers both
+  // mouse drag and touch drag-pan, so this disables panning on every device.
+  // The animation, zoom controls, and the speed of the current layer are all
+  // independent of dragging and keep running.
+  map.dragging.disable();
+
   // Re-frame the editorial view whenever the map's size changes, not just at
   // load, so the basin stays centered at any frame size or aspect ratio.
   //
-  // The minZoom floor uses getBoundsZoom(DEFAULT_VIEW) with inside = false
-  // ("contain"): the largest zoom at which the *whole* basin still fits the
-  // viewport. This guarantees the full basin is never clipped — on a wide frame
-  // the floor zooms out far enough to show all of it (Leaflet then keeps the
-  // view centered within maxBounds). The previous floor instead made SAFE_BOUNDS
-  // *fill* the viewport (inside = true), which on wide frames forced a zoom-in
-  // that clipped the top and bottom of the basin.
+  // Two zooms drive the framing:
+  //
+  //   coverZoom = getBoundsZoom(SAFE_BOUNDS, true)  — the *minimum* zoom at which
+  //     the viewport fits entirely *inside* SAFE_BOUNDS ("cover"). At this zoom
+  //     or higher the visible rectangle can never reach a data edge, on any
+  //     aspect ratio. We use it as the minZoom floor so neither the initial
+  //     frame nor any later zoom-out can re-expose the rectangular grid edge /
+  //     particle fringe.
+  //
+  //   fitZoom = getBoundsZoom(DEFAULT_VIEW, false)  — the largest zoom at which
+  //     the whole editorial frame still fits ("contain"). This is the nice Gulf
+  //     framing on ordinary screens.
+  //
+  // We show max(coverZoom, fitZoom): on normal aspect ratios fitZoom wins and
+  // you get the editorial Gulf frame; on extreme aspect ratios (very wide, or
+  // tall/narrow phones) coverZoom wins and the view zooms in just enough to keep
+  // every data edge out of frame, staying centered on the Gulf. fitBounds alone
+  // (the previous approach) "contained" DEFAULT_VIEW and therefore over-showed
+  // the unconstrained dimension on those extreme frames, revealing the edge.
   function reframe() {
-    map.setMinZoom(map.getBoundsZoom(DEFAULT_VIEW));
-    map.fitBounds(DEFAULT_VIEW);
+    var coverZoom = map.getBoundsZoom(SAFE_BOUNDS, true);
+    var fitZoom = map.getBoundsZoom(DEFAULT_VIEW, false);
+    map.setMinZoom(coverZoom);
+    map.setView(DEFAULT_VIEW.getCenter(), Math.max(coverZoom, fitZoom), { animate: false });
   }
   reframe();
   map.on("resize", reframe);
