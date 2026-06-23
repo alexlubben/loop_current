@@ -121,9 +121,15 @@
     .then(function (data) {
       if (!Array.isArray(data) || data.length < 2) throw new Error("bad data");
       velocityLayer.setData(data);
+      var h = data[0].header || {};
+      // The committed seed is the illustrative field (tools/generate-field.js);
+      // CI overwrites it with real HYCOM. Credit it honestly for what it is.
+      if (/illustrative/i.test(h.source || "")) {
+        setCredit("Illustrative flow field");
+        return;
+      }
       // Show the data date only when it's recent (the high-res Gulf archive is
       // historical, so we don't want to imply it's today's forecast).
-      var h = data[0].header || {};
       var when = h.refTime ? new Date(h.refTime) : null;
       var fresh = when && !isNaN(when) &&
         (Date.now() - when.getTime()) < 400 * 864e5;
