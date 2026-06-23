@@ -14,11 +14,11 @@ by current speed.
 ![Poster preview](poster.png)
 
 > **Data:** the animation is driven by **real HYCOM surface currents** for the
-> Gulf, fetched from NOAA ERDDAP in CI and refreshed daily (see "How the data
-> works"). If the data feed is ever unavailable, the page automatically falls
-> back to a hand-composed *illustrative* field so the animation always plays.
-> The on-map credit line shows which one is currently displayed and the data
-> date.
+> Gulf — a **fixed HYCOM-TSIS reanalysis snapshot from 2010-06-15**, the Loop
+> Current Eddy "Franklin" period (see "Current data snapshot" below). If the data
+> file is ever unavailable, the page automatically falls back to a hand-composed
+> *illustrative* field so the animation always plays. The on-map credit line
+> shows which one is displayed and the snapshot date.
 
 ## What's in here
 
@@ -33,7 +33,7 @@ by current speed.
 | `css/style.css` | Title, legend, and embed styling |
 | `vendor/` | Vendored Leaflet + leaflet-velocity (no CDN needed at runtime) |
 | `tools/render-preview.js` | Renders `poster.png`, a static streamline snapshot |
-| `.github/workflows/pages.yml` | Fetches data, renders the poster, deploys to Pages |
+| `.github/workflows/pages.yml` | Renders the poster and deploys the static site to Pages |
 
 The libraries are vendored locally, so at runtime the page only fetches the
 current-data JSON (same-origin) and the satellite basemap tiles (from Esri). If
@@ -42,23 +42,27 @@ and the animation still plays.
 
 ## How the data works
 
-The Loop Current is always shifting, so the map shows a recent real snapshot
-rather than a hand-drawn cartoon:
+The map shows a **fixed real snapshot** of the Loop Current rather than a
+hand-drawn cartoon. The current field in `data/gulf-currents.json` is the
+HYCOM-TSIS 2010-06-15 reanalysis snapshot documented under
+"Current data snapshot" below.
 
-1. `tools/fetch-currents.js` runs in GitHub Actions (which has open internet),
-   searches NOAA/IOOS **ERDDAP** servers for HYCOM/RTOFS surface-current
-   datasets, auto-detects the eastward/northward velocity variables and grid
-   layout, subsets to the Gulf, and writes `data/gulf-currents.json` in the
-   leaflet-velocity u/v grid format.
-2. The Pages workflow bakes that JSON into the deployed site (so the browser
-   loads it **same-origin** — no CORS headaches in a CMS embed) and refreshes it
-   **daily** on a schedule.
-3. `js/app.js` loads the JSON; if it's missing, it uses the procedural fallback.
+1. `data/gulf-currents.json` is committed to the repo (a leaflet-velocity u/v
+   grid). The Pages workflow deploys it as-is, so the browser loads it
+   **same-origin** — no CORS headaches in a CMS embed. It is **not** refreshed
+   on a schedule, so the snapshot is stable.
+2. `js/app.js` loads the JSON; if it's missing, it uses the procedural fallback.
 
-You can run the fetch yourself anywhere with internet:
+Two tools can (re)generate the data file:
 
 ```bash
-node tools/fetch-currents.js   # writes data/gulf-currents.json
+# Fixed HYCOM-TSIS reanalysis snapshot (this is what currently ships):
+pip install numpy netCDF4
+python3 tools/fetch-hycom-tsis.py run --date 2010-06-15T00:00:00Z
+
+# Legacy: a live daily HYCOM/RTOFS field from NOAA/IOOS ERDDAP (basin-wide).
+# Self-discovering across ERDDAP servers; run anywhere with open internet:
+node tools/fetch-currents.js
 ```
 
 ## Current data snapshot — provenance
@@ -185,9 +189,9 @@ node tools/render-preview.js > preview.svg   # uses real data if present
 
 ## Credits
 
-- Current data: [HYCOM](https://www.hycom.org/) via
-  [NOAA ERDDAP](https://www.ncei.noaa.gov/erddap/) (the same model family the
-  GCOOS map uses)
+- Current data: HYCOM-TSIS 1/25° Gulf of Mexico Reanalysis
+  ([HYCOM](https://www.hycom.org/), COAPS / Florida State University), snapshot
+  2010-06-15 — see "Current data snapshot" for full provenance
 - Basemap imagery © [Esri](https://www.esri.com/), Maxar, Earthstar Geographics
 - Particle engine: [leaflet-velocity](https://github.com/onaci/leaflet-velocity)
   (a Leaflet port of the earth.nullschool / Windy wind-particle renderer)
