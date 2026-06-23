@@ -5,20 +5,20 @@
   "use strict";
 
   // ----- Map ---------------------------------------------------------------
-  // The velocity data is a finite rectangular grid (lon -98.96..-58.16, lat
-  // 8.0..41.84). To keep its hard rectangular edge from ever showing — at any
-  // screen aspect ratio, zoom, or pan — we lock the view *inside* the data:
+  // The velocity data is a finite rectangular grid (lon -98.0..-77.04, lat
+  // 18.09..31.96 — the HYCOM-TSIS GOMb0.04 Gulf-of-Mexico reanalysis). To keep
+  // its hard rectangular edge from ever showing — at any screen aspect ratio,
+  // zoom, or pan — we lock the view *inside* the data:
   //
-  //   SAFE_BOUNDS   a rectangle inset ~2deg from every data edge. With a hard
-  //                 maxBounds wall and a minZoom floor computed from it, the
+  //   SAFE_BOUNDS   a rectangle inset ~1.5-2deg from every data edge. With a
+  //                 hard maxBounds wall and a minZoom floor computed from it, the
   //                 viewport can never extend past it, so the grid edge (and its
   //                 faint particle fringe) stays off-screen.
-  //   DEFAULT_VIEW  the editorial frame shown on load: the Gulf of Mexico, Loop
-  //                 Current, western eddies, Florida Straits, and the Gulf Stream
-  //                 sweeping NE up the Atlantic coast — cropped well before the
-  //                 edge.
-  var SAFE_BOUNDS = L.latLngBounds([10.0, -97.0], [40.0, -60.5]);
-  var DEFAULT_VIEW = L.latLngBounds([16.0, -96.0], [38.0, -67.0]);
+  //   DEFAULT_VIEW  the editorial frame shown on load: the Gulf of Mexico, the
+  //                 Yucatán inflow, the Loop Current apex, the western eddies,
+  //                 and the Florida Straits — cropped well before the edge.
+  var SAFE_BOUNDS = L.latLngBounds([19.5, -96.5], [30.5, -78.5]);
+  var DEFAULT_VIEW = L.latLngBounds([20.0, -96.0], [30.0, -79.0]);
 
   var map = L.map("map", {
     maxZoom: 9,
