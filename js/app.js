@@ -22,59 +22,36 @@
   // "Loop Current" title card in the top-left corner.
   map.zoomControl.setPosition("topright");
 
-  // CARTO "Voyager" (no labels) — a clean, light cartographic canvas with light
-  // blue water and pale land, the flat "water / land colors" newsroom look. This
-  // is the default basemap. Tiles load in the reader's browser at runtime.
-  // {r} resolves to "@2x" on retina displays.
-  var lightLand = L.tileLayer(
-    "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png",
-    {
-      maxZoom: 9,
-      subdomains: "abcd",
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-    }
-  );
+  // ----- Basemap (licensed, commercially safe) -----------------------------
+  // OpenFreeMap (https://openfreemap.org) — a fully open-source tile service
+  // built on OpenStreetMap data, free for commercial/editorial use, no API key.
+  // It serves *vector* tiles, so we render them with MapLibre GL (vendored) via
+  // the leaflet-maplibre-gl plugin rather than a raster L.tileLayer.
+  //
+  // The "positron" style is the clean, light water/land look (pale land, light
+  // water) that replaces the old CARTO Voyager basemap. Swap `style` to
+  // ".../styles/bright" for a more colored look. No subdomains or API key are
+  // required; if you later move to a keyed provider, add the key to this block
+  // (it is public on GitHub Pages — restrict it to your domain in the provider
+  // dashboard; do not treat it as a secret).
+  var BASEMAP = {
+    style: "https://tiles.openfreemap.org/styles/positron",
+    attribution:
+      '&copy; <a href="https://openfreemap.org">OpenFreeMap</a> ' +
+      '&copy; <a href="https://www.openmaptiles.org/">OpenMapTiles</a> ' +
+      'Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 9   // enforced by the Leaflet map's own maxZoom above
+  };
 
-  // CARTO "Dark Matter" (no labels) — the original near-black canvas. Kept as a
-  // toggle for the high-contrast, glowing-streak look.
-  var darkCanvas = L.tileLayer(
-    "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
-    {
-      maxZoom: 9,
-      subdomains: "abcd",
-      attribution:
-        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-    }
-  );
+  // Single licensed base layer. customAttribution guarantees the required
+  // OpenFreeMap / OpenMapTiles / OpenStreetMap credit renders in Leaflet's
+  // attribution control regardless of the style's internal source metadata.
+  var baseLayer = L.maplibreGL({
+    style: BASEMAP.style,
+    attributionControl: { customAttribution: BASEMAP.attribution }
+  }).addTo(map);
 
-  // Esri "Firefly" world imagery — the dark, luminous satellite look used by the
-  // GCOOS reference map. Kept as a toggle for readers who want the imagery view.
-  var firefly = L.tileLayer(
-    "https://fly.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Firefly/MapServer/tile/{z}/{y}/{x}",
-    {
-      maxZoom: 9,
-      attribution:
-        'Imagery &copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics'
-    }
-  );
-
-  var imagery = L.tileLayer(
-    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    {
-      maxZoom: 9,
-      attribution:
-        'Imagery &copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics'
-    }
-  );
-
-  lightLand.addTo(map);
-
-  L.control.layers(
-    { "Light (water / land)": lightLand, "Dark canvas": darkCanvas, "Imagery (Firefly)": firefly, "Imagery": imagery },
-    null,
-    { position: "topright", collapsed: true }
-  ).addTo(map);
+  // Only one licensed base layer and no imagery toggle, so no layers control.
 
   // Let users opt into scroll-zoom by clicking the map first.
   map.on("focus", function () { map.scrollWheelZoom.enable(); });

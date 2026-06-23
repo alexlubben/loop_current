@@ -6,10 +6,10 @@ eastern Gulf as the **Loop Current**, pinching off **anticyclonic eddies** that
 drift west, and bending back through the **Straits of Florida** to feed the
 **Gulf Stream**.
 
-It reproduces the look of the
+It echoes the
 [GCOOS HYCOM ocean-current map](https://geo.gcoos.org/data/maps/gcoos-region/):
-luminous "Firefly" satellite imagery with flowing particle streaklines colored
-by current speed.
+a clean light water/land basemap with flowing particle streaklines colored by
+current speed.
 
 ![Poster preview](poster.png)
 
@@ -29,14 +29,15 @@ by current speed.
 | `tools/fetch-currents.js` | Pulls real HYCOM currents from NOAA ERDDAP → `data/gulf-currents.json` |
 | `js/current-field.js` | Generates the fallback (illustrative) velocity field |
 | `css/style.css` | Title, legend, and embed styling |
-| `vendor/` | Vendored Leaflet + leaflet-velocity (no CDN needed at runtime) |
+| `vendor/` | Vendored Leaflet, MapLibre GL + leaflet-maplibre-gl, leaflet-velocity (no CDN needed at runtime) |
 | `tools/render-preview.js` | Renders `poster.png`, a static streamline snapshot |
 | `.github/workflows/pages.yml` | Fetches data, renders the poster, deploys to Pages |
 
 The libraries are vendored locally, so at runtime the page only fetches the
-current-data JSON (same-origin) and the satellite basemap tiles (from Esri). If
-the tiles are ever unreachable, the page falls back to a dark ocean background
-and the animation still plays.
+current-data JSON (same-origin) and the basemap vector tiles from
+[OpenFreeMap](https://openfreemap.org) (open OpenStreetMap data, no API key). If
+the tiles are ever unreachable, the page falls back to a plain background and the
+animation still plays.
 
 ## How the data works
 
@@ -134,9 +135,13 @@ node tools/render-preview.js > preview.svg   # uses real data if present
 - Current data: [HYCOM](https://www.hycom.org/) via
   [NOAA ERDDAP](https://www.ncei.noaa.gov/erddap/) (the same model family the
   GCOOS map uses)
-- Basemap imagery © [Esri](https://www.esri.com/), Maxar, Earthstar Geographics
+- Basemap: © [OpenFreeMap](https://openfreemap.org) ©
+  [OpenMapTiles](https://www.openmaptiles.org/), data from
+  [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors
 - Particle engine: [leaflet-velocity](https://github.com/onaci/leaflet-velocity)
   (a Leaflet port of the earth.nullschool / Windy wind-particle renderer)
-- Mapping: [Leaflet](https://leafletjs.com/)
+- Mapping: [Leaflet](https://leafletjs.com/) +
+  [MapLibre GL JS](https://maplibre.org/) (via
+  [leaflet-maplibre-gl](https://github.com/maplibre/maplibre-gl-leaflet))
 - Inspired by the [GCOOS](https://geo.gcoos.org/data/maps/gcoos-region/) Gulf
   region ocean-current map.
