@@ -4,7 +4,7 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
-  background: #0a1726; /* dark ocean fallback if tiles fail to load */
+  background: #b9d4e6; /* light water fallback if tiles fail to load */
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -13,13 +13,13 @@ html, body {
   inset: 0;
   width: 100%;
   height: 100%;
-  background: #0a1726;
+  background: #b9d4e6;
   cursor: grab;
 }
 #map:active { cursor: grabbing; }
 
 /* Leaflet draws the basemap; keep the current canvas crisp over it */
-.leaflet-container { background: #0a1726; }
+.leaflet-container { background: #b9d4e6; }
 
 /* ---- Title overlay ---- */
 .title-card {
@@ -68,8 +68,8 @@ html, body {
   height: 9px;
   border-radius: 5px;
   background: linear-gradient(to right,
-    #4f7fd6 0%, #2e8fd0 18%, #1fb0d6 34%, #39c2c9 48%,
-    #7fe0c0 60%, #bdeeb0 72%, #f2f1a0 84%, #f7d774 93%, #ffffff 100%);
+    #1d4e89 0%, #1f7fb0 18%, #1aa0a0 34%, #3fb56b 48%,
+    #9ccb3b 60%, #e8d52f 72%, #f5a623 84%, #f2682c 93%, #9e1b1b 100%);
 }
 .legend .labels {
   display: flex;

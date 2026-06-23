@@ -17,10 +17,22 @@
     maxBoundsViscosity: 0.9
   });
 
-  // CARTO "Dark Matter" (no labels) — a flat, near-black canvas with no satellite
-  // texture, so the luminous cyan->white current streaks read with maximum
-  // contrast. This is the default basemap. Tiles load in the reader's browser at
-  // runtime. {r} resolves to "@2x" on retina displays.
+  // CARTO "Voyager" (no labels) — a clean, light cartographic canvas with light
+  // blue water and pale land, the flat "water / land colors" newsroom look. This
+  // is the default basemap. Tiles load in the reader's browser at runtime.
+  // {r} resolves to "@2x" on retina displays.
+  var lightLand = L.tileLayer(
+    "https://{s}.basemaps.cartocdn.com/rastertiles/voyager_nolabels/{z}/{x}/{y}{r}.png",
+    {
+      maxZoom: 9,
+      subdomains: "abcd",
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    }
+  );
+
+  // CARTO "Dark Matter" (no labels) — the original near-black canvas. Kept as a
+  // toggle for the high-contrast, glowing-streak look.
   var darkCanvas = L.tileLayer(
     "https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png",
     {
@@ -51,10 +63,10 @@
     }
   );
 
-  darkCanvas.addTo(map);
+  lightLand.addTo(map);
 
   L.control.layers(
-    { "Dark canvas": darkCanvas, "Imagery (Firefly)": firefly, "Imagery": imagery },
+    { "Light (water / land)": lightLand, "Dark canvas": darkCanvas, "Imagery (Firefly)": firefly, "Imagery": imagery },
     null,
     { position: "topright", collapsed: true }
   ).addTo(map);
@@ -64,12 +76,13 @@
   map.on("blur", function () { map.scrollWheelZoom.disable(); });
 
   // ----- Animated current layer -------------------------------------------
-  // Cool->hot luminous ramp. Slow water starts at a brighter, more saturated
-  // blue (#4f7fd6) rather than the old murky navy, so even gentle flow registers
-  // against the near-black canvas; the Loop Current core saturates to white.
+  // Cool->hot ramp tuned for the LIGHT water/land basemap: it starts at a
+  // saturated deep blue and ramps through teal/green to amber and a deep red at
+  // the Loop Current core. (The old ramp saturated to white, which was built for
+  // the near-black canvas and washes out on light water.)
   var colorScale = [
-    "#4f7fd6", "#2e8fd0", "#1fb0d6", "#39c2c9", "#7fe0c0",
-    "#bdeeb0", "#f2f1a0", "#f7d774", "#fff4cf", "#ffffff"
+    "#1d4e89", "#1f7fb0", "#1aa0a0", "#3fb56b", "#9ccb3b",
+    "#e8d52f", "#f5a623", "#f2682c", "#e03131", "#9e1b1b"
   ];
 
   var velocityLayer = L.velocityLayer({
