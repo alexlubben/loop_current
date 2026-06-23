@@ -51,15 +51,20 @@
     attributionControl: { customAttribution: BASEMAP.attribution }
   }).addTo(map);
 
-  // Strip place-name labels (cities, towns, country/region/water names) for a
-  // clean cartographic canvas under the current animation. The positron vector
-  // style renders all of its text as MapLibre "symbol" layers, so once the
-  // style has loaded we simply remove those layers and keep the water/land
-  // geometry. (OpenFreeMap has no prebuilt "no labels" style, so we do it here.)
+  // Strip place-name labels and roads for a clean cartographic canvas under the
+  // current animation, leaving only the landmass/water geometry. The positron
+  // vector style renders all of its text as MapLibre "symbol" layers, and its
+  // roads come from the OpenMapTiles "transportation" / "transportation_name"
+  // source-layers. Once the style has loaded we remove both, keeping the
+  // water/land fills. (OpenFreeMap has no prebuilt "no roads/labels" style, so
+  // we do it here.)
   baseLayer.getMaplibreMap().on("load", function () {
     var glMap = baseLayer.getMaplibreMap();
+    var ROAD_SOURCE_LAYERS = ["transportation", "transportation_name"];
     glMap.getStyle().layers.forEach(function (layer) {
-      if (layer.type === "symbol" && glMap.getLayer(layer.id)) {
+      var isLabel = layer.type === "symbol";
+      var isRoad = ROAD_SOURCE_LAYERS.indexOf(layer["source-layer"]) !== -1;
+      if ((isLabel || isRoad) && glMap.getLayer(layer.id)) {
         glMap.removeLayer(layer.id);
       }
     });
