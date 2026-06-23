@@ -2,5 +2,6 @@ node_modules/
 package-lock.json
 preview.svg
 preview.png
+loop-current.svg
 *.tgz
 .DS_Store
