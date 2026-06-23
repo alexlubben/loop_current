@@ -14,9 +14,20 @@ html, body {
   width: 100%;
   height: 100%;
   background: #2b3a4a;
-  cursor: grab;
+  cursor: default;
 }
-#map:active { cursor: grabbing; }
+#map:active { cursor: default; }
+
+/* Panning is disabled (map.dragging.disable() in app.js), so suppress the
+   grab/grabbing "hand" cursor Leaflet would otherwise paint on its draggable
+   container and panes. Without these overrides Leaflet's own leaflet.css still
+   shows the grab hand even though dragging does nothing. */
+.leaflet-grab,
+.leaflet-dragging .leaflet-grab,
+.leaflet-dragging .leaflet-grab .leaflet-interactive,
+.leaflet-grabbing {
+  cursor: default;
+}
 
 /* Leaflet draws the basemap; keep the current canvas crisp over it */
 .leaflet-container { background: #2b3a4a; }
