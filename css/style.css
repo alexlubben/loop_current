@@ -4,7 +4,7 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
-  background: #b9d4e6; /* light water fallback if tiles fail to load */
+  background: #2b3a4a; /* deep slate ocean fallback if tiles fail to load */
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -13,13 +13,13 @@ html, body {
   inset: 0;
   width: 100%;
   height: 100%;
-  background: #b9d4e6;
+  background: #2b3a4a;
   cursor: grab;
 }
 #map:active { cursor: grabbing; }
 
 /* Leaflet draws the basemap; keep the current canvas crisp over it */
-.leaflet-container { background: #b9d4e6; }
+.leaflet-container { background: #2b3a4a; }
 
 /* ---- Title overlay ---- */
 .title-card {

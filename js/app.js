@@ -87,6 +87,12 @@
   // source-layers. Once the style has loaded we remove both, keeping the
   // water/land fills. (OpenFreeMap has no prebuilt "no roads/labels" style, so
   // we do it here.)
+  //
+  // We also darken the ocean. Positron's default water is a pale gray that the
+  // cool (blue/teal) end of the current ramp washes out against. Repainting the
+  // water fill to a deep slate restores contrast so the blue-to-red streaks read
+  // clearly across the whole speed range.
+  var OCEAN_COLOR = "#2b3a4a";   // deep slate-blue ocean for current contrast
   baseLayer.getMaplibreMap().on("load", function () {
     var glMap = baseLayer.getMaplibreMap();
     var ROAD_SOURCE_LAYERS = ["transportation", "transportation_name"];
@@ -95,6 +101,14 @@
       var isRoad = ROAD_SOURCE_LAYERS.indexOf(layer["source-layer"]) !== -1;
       if ((isLabel || isRoad) && glMap.getLayer(layer.id)) {
         glMap.removeLayer(layer.id);
+        return;
+      }
+      // Recolor the water fill(s). In the OpenMapTiles schema the ocean comes
+      // from the "water" source-layer; positron renders it as one or more
+      // fill layers.
+      if (layer.type === "fill" && layer["source-layer"] === "water" &&
+          glMap.getLayer(layer.id)) {
+        glMap.setPaintProperty(layer.id, "fill-color", OCEAN_COLOR);
       }
     });
   });
