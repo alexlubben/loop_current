@@ -5,6 +5,14 @@ name: Refresh current data (no deploy)
 # can run on feature branches that the Pages deploy is locked away from. Use this
 # to verify tools/fetch-currents.js and refresh the data without publishing.
 on:
+  push:
+    branches:
+      - claude/cool-wright-e7ktf9
+    paths-ignore:
+      # This job commits the refreshed data + poster; ignore them so that
+      # commit doesn't retrigger the workflow.
+      - "poster.png"
+      - "data/gulf-currents.json"
   workflow_dispatch:
 
 permissions:
