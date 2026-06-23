@@ -51,6 +51,20 @@
     attributionControl: { customAttribution: BASEMAP.attribution }
   }).addTo(map);
 
+  // Strip place-name labels (cities, towns, country/region/water names) for a
+  // clean cartographic canvas under the current animation. The positron vector
+  // style renders all of its text as MapLibre "symbol" layers, so once the
+  // style has loaded we simply remove those layers and keep the water/land
+  // geometry. (OpenFreeMap has no prebuilt "no labels" style, so we do it here.)
+  baseLayer.getMaplibreMap().on("load", function () {
+    var glMap = baseLayer.getMaplibreMap();
+    glMap.getStyle().layers.forEach(function (layer) {
+      if (layer.type === "symbol" && glMap.getLayer(layer.id)) {
+        glMap.removeLayer(layer.id);
+      }
+    });
+  });
+
   // Only one licensed base layer and no imagery toggle, so no layers control.
 
   // Let users opt into scroll-zoom by clicking the map first.
