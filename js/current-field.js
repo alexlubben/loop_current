@@ -25,14 +25,15 @@
   "use strict";
 
   // ----- Domain (bounding box of the generated grid) -----------------------
-  // West/East longitude and South/North latitude. Covers the whole Gulf plus a
-  // slice of the Atlantic so the Gulf Stream has somewhere to flow.
+  // West/East longitude and South/North latitude. Spans the Caribbean Sea, the
+  // whole Gulf of Mexico, and the western North Atlantic so the full Caribbean
+  // Current -> Loop Current -> Gulf Stream pathway has room to flow.
   var DOMAIN = {
-    west: -98.5,
-    east: -76.0,
-    south: 17.5,
-    north: 31.0,
-    step: 0.1 // grid resolution in degrees (smaller = smoother but heavier)
+    west: -99.0,
+    east: -58.0,
+    south: 8.0,
+    north: 42.0,
+    step: 0.15 // grid resolution in degrees (smaller = smoother but heavier)
   };
 
   // ----- Loop Current + Gulf Stream centerline -----------------------------
@@ -40,6 +41,10 @@
   // from the first point toward the last. Speed lets the core run fast (bright)
   // and lets the flow ease in/out at the domain edges.
   var CENTERLINE = [
+    [-69.0, 12.3, 0.4],  // Caribbean Current off Venezuela/Colombia
+    [-75.0, 14.0, 0.5],  // sweeping WNW across the Caribbean Sea
+    [-80.0, 15.9, 0.6],
+    [-83.5, 16.9, 0.65], // converging on the Yucatan Channel
     [-85.9, 17.8, 0.7],  // entering the Yucatan Channel from the Caribbean
     [-85.7, 19.6, 1.3],
     [-85.5, 21.4, 1.7],  // racing north through the channel
@@ -58,7 +63,13 @@
     [-79.8, 26.2, 1.7],
     [-79.6, 27.8, 1.6],  // turning north as the Gulf Stream
     [-79.2, 29.4, 1.5],
-    [-78.4, 30.9, 1.3]   // exiting the domain up the Atlantic seaboard
+    [-78.4, 30.9, 1.3],  // running north as the Gulf Stream
+    [-77.0, 32.5, 1.2],
+    [-75.5, 34.5, 1.2],  // approaching Cape Hatteras
+    [-73.0, 36.2, 1.1],  // separating from the coast, turning northeast
+    [-69.0, 38.2, 1.0],
+    [-64.0, 39.6, 0.8],
+    [-59.0, 40.6, 0.6]   // exiting into the open North Atlantic
   ];
 
   // Cross-stream half-width of the jet, in degrees. Larger = broader river.

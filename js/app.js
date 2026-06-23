@@ -6,62 +6,65 @@
 
   // ----- Map ---------------------------------------------------------------
   var map = L.map("map", {
-    center: [24.4, -88.5],
-    zoom: 6,
-    minZoom: 5,
+    center: [25.0, -87.0],    // heart of the Gulf / Loop Current core
+    zoom: 6,                  // close enough that the data's rectangular edge
+                              // (esp. over the open Atlantic) stays off-screen
+    minZoom: 3,               // zoom out far enough to take in the whole basin
     maxZoom: 9,
     zoomControl: true,
     attributionControl: true,
     scrollWheelZoom: false,   // don't hijack page scroll inside an article
-    maxBounds: [[14.0, -101.5], [33.5, -73.0]],
+    maxBounds: [[4.0, -103.0], [45.0, -54.0]],
     maxBoundsViscosity: 0.9
   });
 
-  // Esri "Firefly" world imagery — the dark, luminous satellite look used by
-  // the GCOOS reference map. Falls back to standard World Imagery if Firefly
-  // tiles are unavailable. Tiles load in the reader's browser at runtime.
-  var firefly = L.tileLayer(
-    "https://fly.maptiles.arcgis.com/arcgis/rest/services/World_Imagery_Firefly/MapServer/tile/{z}/{y}/{x}",
-    {
-      maxZoom: 9,
-      attribution:
-        'Imagery &copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics'
-    }
-  );
+  // Move the +/- zoom control to the top-right so it doesn't sit on top of the
+  // "Loop Current" title card in the top-left corner.
+  map.zoomControl.setPosition("topright");
 
-  var imagery = L.tileLayer(
-    "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    {
-      maxZoom: 9,
-      attribution:
-        'Imagery &copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics'
-    }
-  );
+  // ----- Basemap (licensed, commercially safe) -----------------------------
+  // OpenFreeMap (https://openfreemap.org) — a fully open-source tile service
+  // built on OpenStreetMap data, free for commercial/editorial use, no API key.
+  // It serves *vector* tiles, so we render them with MapLibre GL (vendored) via
+  // the leaflet-maplibre-gl plugin rather than a raster L.tileLayer.
+  //
+  // The "positron" style is the clean, light water/land look (pale land, light
+  // water) that replaces the old CARTO Voyager basemap. Swap `style` to
+  // ".../styles/bright" for a more colored look. No subdomains or API key are
+  // required; if you later move to a keyed provider, add the key to this block
+  // (it is public on GitHub Pages — restrict it to your domain in the provider
+  // dashboard; do not treat it as a secret).
+  var BASEMAP = {
+    style: "https://tiles.openfreemap.org/styles/positron",
+    attribution:
+      '&copy; <a href="https://openfreemap.org">OpenFreeMap</a> ' +
+      '&copy; <a href="https://www.openmaptiles.org/">OpenMapTiles</a> ' +
+      'Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 9   // enforced by the Leaflet map's own maxZoom above
+  };
 
-  firefly.addTo(map);
-  // If Firefly tiles error out, swap to the standard imagery service.
-  var fireflyErrors = 0;
-  firefly.on("tileerror", function () {
-    if (++fireflyErrors === 4 && map.hasLayer(firefly)) {
-      map.removeLayer(firefly);
-      imagery.addTo(map);
-    }
-  });
+  // Single licensed base layer. customAttribution guarantees the required
+  // OpenFreeMap / OpenMapTiles / OpenStreetMap credit renders in Leaflet's
+  // attribution control regardless of the style's internal source metadata.
+  var baseLayer = L.maplibreGL({
+    style: BASEMAP.style,
+    attributionControl: { customAttribution: BASEMAP.attribution }
+  }).addTo(map);
 
-  L.control.layers(
-    { "Imagery (Firefly)": firefly, "Imagery": imagery },
-    null,
-    { position: "topright", collapsed: true }
-  ).addTo(map);
+  // Only one licensed base layer and no imagery toggle, so no layers control.
 
   // Let users opt into scroll-zoom by clicking the map first.
   map.on("focus", function () { map.scrollWheelZoom.enable(); });
   map.on("blur", function () { map.scrollWheelZoom.disable(); });
 
   // ----- Animated current layer -------------------------------------------
+  // Cool->hot ramp tuned for the LIGHT water/land basemap: it starts at a
+  // saturated deep blue and ramps through teal/green to amber and a deep red at
+  // the Loop Current core. (The old ramp saturated to white, which was built for
+  // the near-black canvas and washes out on light water.)
   var colorScale = [
-    "#3a4f9a", "#2e6fb7", "#1f9ed1", "#39c2c9", "#7fe0c0",
-    "#bdeeb0", "#f2f1a0", "#f7d774", "#fff4cf", "#ffffff"
+    "#1d4e89", "#1f7fb0", "#1aa0a0", "#3fb56b", "#9ccb3b",
+    "#e8d52f", "#f5a623", "#f2682c", "#e03131", "#9e1b1b"
   ];
 
   var velocityLayer = L.velocityLayer({
@@ -69,10 +72,14 @@
     data: [],
     minVelocity: 0.0,
     maxVelocity: 1.4,        // speeds at/above this (Loop Current core) saturate to white
-    velocityScale: 0.012,    // particle step per frame (lively but not frantic)
-    particleAge: 100,        // frames before a streak is reborn
-    particleMultiplier: 1 / 260, // streak density
-    lineWidth: 1.3,
+    velocityScale: 0.100,    // particle step per frame — longer, more visible streaks
+    particleAge: 120,        // frames a particle lives before it is recycled to a
+                             // fresh random spot. Keep this modest: large values
+                             // let particles drain out of the fast Loop Current jet
+                             // and pile up forever in the closed eddy loops, which
+                             // makes the current die out and the eddies clump.
+    particleMultiplier: 1 / 150, // streak density
+    lineWidth: 3,
     frameRate: 24,
     opacity: 0.92,
     colorScale: colorScale
