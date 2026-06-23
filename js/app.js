@@ -29,8 +29,16 @@
     maxZoom: 9,
     zoomControl: false,
     attributionControl: true,
-    scrollWheelZoom: false,   // don't hijack page scroll inside an article
     dragging: false,          // no drag-panning: the view is a fixed editorial frame
+    // Zoom is fully locked: the user can never change the zoom level, so the
+    // edge-safe framing computed in reframe() can't be zoomed out of (which
+    // would re-expose the rectangular data edge) or zoomed into. Every zoom
+    // entry point is disabled here:
+    scrollWheelZoom: false,   // mouse wheel / trackpad scroll
+    doubleClickZoom: false,   // double-click / double-tap
+    touchZoom: false,         // pinch-zoom on touch devices
+    boxZoom: false,           // shift-drag zoom box
+    keyboard: false,          // +/- and arrow keys (also blocks keyboard pan)
     maxBounds: SAFE_BOUNDS,
     maxBoundsViscosity: 1.0   // hard wall: the view can't slip past the inset
   });
@@ -137,9 +145,8 @@
 
   // Only one licensed base layer and no imagery toggle, so no layers control.
 
-  // Let users opt into scroll-zoom by clicking the map first.
-  map.on("focus", function () { map.scrollWheelZoom.enable(); });
-  map.on("blur", function () { map.scrollWheelZoom.disable(); });
+  // Zoom is locked (see the map options above), so there is no click-to-enable
+  // scroll-zoom behavior — the editorial frame stays fixed.
 
   // ----- Animated current layer -------------------------------------------
   // Cool->hot ramp tuned for the LIGHT water/land basemap: it starts at a
