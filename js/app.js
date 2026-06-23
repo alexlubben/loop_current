@@ -5,18 +5,42 @@
   "use strict";
 
   // ----- Map ---------------------------------------------------------------
+  // The velocity data is a finite rectangular grid (lon -98.96..-58.16, lat
+  // 8.0..41.84). To keep its hard rectangular edge from ever showing — at any
+  // screen aspect ratio, zoom, or pan — we lock the view *inside* the data:
+  //
+  //   SAFE_BOUNDS   a rectangle inset ~2deg from every data edge. With a hard
+  //                 maxBounds wall and a minZoom floor computed from it, the
+  //                 viewport can never extend past it, so the grid edge (and its
+  //                 faint particle fringe) stays off-screen.
+  //   DEFAULT_VIEW  the editorial frame shown on load: the Gulf of Mexico, Loop
+  //                 Current, western eddies, Florida Straits, and the Gulf Stream
+  //                 sweeping NE up the Atlantic coast — cropped well before the
+  //                 edge.
+  var SAFE_BOUNDS = L.latLngBounds([10.0, -97.0], [40.0, -60.5]);
+  var DEFAULT_VIEW = L.latLngBounds([16.0, -96.0], [38.0, -67.0]);
+
   var map = L.map("map", {
-    center: [25.0, -87.0],    // heart of the Gulf / Loop Current core
-    zoom: 6,                  // close enough that the data's rectangular edge
-                              // (esp. over the open Atlantic) stays off-screen
-    minZoom: 3,               // zoom out far enough to take in the whole basin
     maxZoom: 9,
     zoomControl: true,
     attributionControl: true,
     scrollWheelZoom: false,   // don't hijack page scroll inside an article
-    maxBounds: [[4.0, -103.0], [45.0, -54.0]],
-    maxBoundsViscosity: 0.9
+    maxBounds: SAFE_BOUNDS,
+    maxBoundsViscosity: 1.0   // hard wall: the view can't slip past the inset
   });
+
+  // Floor the zoom so that even fully zoomed out, SAFE_BOUNDS still *fills* the
+  // viewport (inside = true) — nothing outside it is ever visible, hence no data
+  // edge. Recompute on resize so embedded/responsive layouts stay safe; only the
+  // floor changes, so the reader's current view isn't yanked.
+  function updateConstraints() {
+    map.setMinZoom(map.getBoundsZoom(SAFE_BOUNDS, true));
+  }
+  updateConstraints();
+  map.on("resize", updateConstraints);
+
+  // Frame the default editorial view.
+  map.fitBounds(DEFAULT_VIEW);
 
   // Move the +/- zoom control to the top-right so it doesn't sit on top of the
   // "Loop Current" title card in the top-left corner.
