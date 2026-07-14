@@ -7,3 +7,4 @@ preview.png
 __pycache__/
 .hycom-cache/
 tmp/
+scratchpad/
