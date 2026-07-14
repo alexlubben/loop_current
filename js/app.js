@@ -28,7 +28,11 @@
   var map = L.map("map", {
     maxZoom: 9,
     zoomControl: false,
-    attributionControl: true,
+    // No attribution control: the basemap is now public-domain Natural Earth
+    // land (see below), which requires no credit, and nothing else on the map
+    // is OSM/ODbL-derived. This also suppresses Leaflet's default "Leaflet"
+    // prefix, which the prefix setter would otherwise still show.
+    attributionControl: false,
     dragging: false,          // no drag-panning: the view is a fixed editorial frame
     // Zoom is fully locked: the user can never change the zoom level, so the
     // edge-safe framing computed in reframe() can't be zoomed out of (which
@@ -89,69 +93,51 @@
   reframe();
   map.on("resize", reframe);
 
-  // ----- Basemap (licensed, commercially safe) -----------------------------
-  // OpenFreeMap (https://openfreemap.org) — a fully open-source tile service
-  // built on OpenStreetMap data, free for commercial/editorial use, no API key.
-  // It serves *vector* tiles, so we render them with MapLibre GL (vendored) via
-  // the leaflet-maplibre-gl plugin rather than a raster L.tileLayer.
+  // ----- Basemap: Natural Earth land polygons (public domain) --------------
+  // Replaces the former OpenFreeMap (OSM-derived) vector-tile basemap. Only the
+  // coastline / land geometry was ever used from that tile stack — no roads,
+  // labels, or POIs — and OSM data is ODbL, which legally requires an on-map
+  // attribution line. Natural Earth is public domain and needs no credit, and
+  // vector land renders crisply with a fill color we control directly instead
+  // of fighting a tile style.
   //
-  // The "positron" style is the clean, light water/land look (pale land, light
-  // water) that replaces the old CARTO Voyager basemap. Swap `style` to
-  // ".../styles/bright" for a more colored look. No subdomains or API key are
-  // required; if you later move to a keyed provider, add the key to this block
-  // (it is public on GitHub Pages — restrict it to your domain in the provider
-  // dashboard; do not treat it as a secret).
-  var BASEMAP = {
-    style: "https://tiles.openfreemap.org/styles/positron",
-    attribution:
-      '&copy; <a href="https://openfreemap.org">OpenFreeMap</a> ' +
-      '&copy; <a href="https://www.openmaptiles.org/">OpenMapTiles</a> ' +
-      'Data from <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-    maxZoom: 9   // enforced by the Leaflet map's own maxZoom above
-  };
+  // data/land.geojson is Natural Earth 1:10m "land" merged with 1:10m
+  // "minor_islands" (physical vector), clipped to this map's frame and
+  // simplified — see scripts/build_land_geojson.sh for the exact source URLs
+  // and build steps. The 1:50m land was too blocky along Florida / Cuba /
+  // Yucatán at our zoom, and the small Caribbean islands that frame the current
+  // (the Florida Keys, the Bahamas and Cuba cays lining the Straits) only appear
+  // once minor_islands is merged in. It is WGS84 (EPSG:4326) lon/lat; Leaflet's
+  // GeoJSON layer projects it to Web Mercator itself.
+  //
+  // There is no ocean polygon: the ocean is the map container's CSS background
+  // (#2b3a4a, a deep slate, see css/style.css) which keeps the blue→red current
+  // ramp readable. Land is a light near-white fill for contrast.
 
-  // Single licensed base layer. customAttribution guarantees the required
-  // OpenFreeMap / OpenMapTiles / OpenStreetMap credit renders in Leaflet's
-  // attribution control regardless of the style's internal source metadata.
-  var baseLayer = L.maplibreGL({
-    style: BASEMAP.style,
-    attributionControl: { customAttribution: BASEMAP.attribution }
+  // A dedicated low pane guarantees the land always renders *under* the animated
+  // current canvas, which lives in Leaflet's overlayPane (z-index 400),
+  // regardless of the async order in which the two layers finish loading.
+  map.createPane("land");
+  map.getPane("land").style.zIndex = 250;
+
+  var landLayer = L.geoJSON(null, {
+    pane: "land",
+    interactive: false,
+    style: {
+      color: "#c3ccd6",     // faint coastline stroke
+      weight: 0.5,
+      fillColor: "#eef1f4", // light near-white land
+      fillOpacity: 1,
+      opacity: 1
+    }
   }).addTo(map);
 
-  // Strip place-name labels and roads for a clean cartographic canvas under the
-  // current animation, leaving only the landmass/water geometry. The positron
-  // vector style renders all of its text as MapLibre "symbol" layers, and its
-  // roads come from the OpenMapTiles "transportation" / "transportation_name"
-  // source-layers. Once the style has loaded we remove both, keeping the
-  // water/land fills. (OpenFreeMap has no prebuilt "no roads/labels" style, so
-  // we do it here.)
-  //
-  // We also darken the ocean. Positron's default water is a pale gray that the
-  // cool (blue/teal) end of the current ramp washes out against. Repainting the
-  // water fill to a deep slate restores contrast so the blue-to-red streaks read
-  // clearly across the whole speed range.
-  var OCEAN_COLOR = "#2b3a4a";   // deep slate-blue ocean for current contrast
-  baseLayer.getMaplibreMap().on("load", function () {
-    var glMap = baseLayer.getMaplibreMap();
-    var ROAD_SOURCE_LAYERS = ["transportation", "transportation_name"];
-    glMap.getStyle().layers.forEach(function (layer) {
-      var isLabel = layer.type === "symbol";
-      var isRoad = ROAD_SOURCE_LAYERS.indexOf(layer["source-layer"]) !== -1;
-      if ((isLabel || isRoad) && glMap.getLayer(layer.id)) {
-        glMap.removeLayer(layer.id);
-        return;
-      }
-      // Recolor the water fill(s). In the OpenMapTiles schema the ocean comes
-      // from the "water" source-layer; positron renders it as one or more
-      // fill layers.
-      if (layer.type === "fill" && layer["source-layer"] === "water" &&
-          glMap.getLayer(layer.id)) {
-        glMap.setPaintProperty(layer.id, "fill-color", OCEAN_COLOR);
-      }
-    });
-  });
-
-  // Only one licensed base layer and no imagery toggle, so no layers control.
+  // If land.geojson is missing or won't parse, the CSS background still paints
+  // an all-ocean canvas, so the current animation always plays.
+  fetch("data/land.geojson", { cache: "no-cache" })
+    .then(function (r) { if (!r.ok) throw new Error("no land file"); return r.json(); })
+    .then(function (geo) { landLayer.addData(geo); })
+    .catch(function () { /* ocean-only fallback */ });
 
   // Zoom is locked (see the map options above), so there is no click-to-enable
   // scroll-zoom behavior — the editorial frame stays fixed.
