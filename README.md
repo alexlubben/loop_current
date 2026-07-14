@@ -8,8 +8,8 @@ drift west, and bending back through the **Straits of Florida** to feed the
 
 It echoes the
 [GCOOS HYCOM ocean-current map](https://geo.gcoos.org/data/maps/gcoos-region/):
-a clean light water/land basemap with flowing particle streaklines colored by
-current speed.
+a clean light-land / dark-water basemap with flowing particle streaklines
+colored by current speed.
 
 ![Poster preview](poster.png)
 
@@ -28,21 +28,23 @@ current speed.
 | --- | --- |
 | `index.html` | The standalone, embeddable page |
 | `js/app.js` | Sets up the Leaflet map, basemap, and animated current layer |
+| `data/land.geojson` | The basemap: Natural Earth 1:10m land + minor_islands, clipped to the map frame (public domain) |
+| `scripts/build_land_geojson.sh` | Regenerates `data/land.geojson` from Natural Earth (records the source URLs) |
 | `scripts/convert_hycom.py` | Converts a HYCOM GOFS 3.1 GLBy0.08 surface NetCDF → `data/gulf-currents.json` (the snapshot that currently ships; see provenance below) |
 | `tools/fetch-currents.js` | Legacy: pulls real HYCOM currents from NOAA ERDDAP → `data/gulf-currents.json` |
 | `tools/fetch-hycom-tsis.py` | Legacy: pulls a fixed HYCOM-TSIS 2010 Gulf-only reanalysis snapshot → `data/gulf-currents.json` |
 | `tools/test_convert_synthetic.py` | Offline test of the NetCDF→JSON conversion schema |
 | `js/current-field.js` | Generates the fallback (illustrative) velocity field |
 | `css/style.css` | Title, legend, and embed styling |
-| `vendor/` | Vendored Leaflet, MapLibre GL + leaflet-maplibre-gl, leaflet-velocity (no CDN needed at runtime) |
+| `vendor/` | Vendored Leaflet and leaflet-velocity (no CDN needed at runtime) |
 | `tools/render-preview.js` | Renders `poster.png`, a static streamline snapshot |
 | `.github/workflows/pages.yml` | Renders the poster and deploys the static site to Pages |
 
-The libraries are vendored locally, so at runtime the page only fetches the
-current-data JSON (same-origin) and the basemap vector tiles from
-[OpenFreeMap](https://openfreemap.org) (open OpenStreetMap data, no API key). If
-the tiles are ever unreachable, the page falls back to a plain background and the
-animation still plays.
+The libraries are vendored locally and the basemap is a local Natural Earth
+GeoJSON, so at runtime the page makes **no network requests at all** beyond the
+same-origin current-data JSON — nothing loads from any tile server. If
+`data/land.geojson` is ever unreachable, the page falls back to a plain ocean
+background and the animation still plays.
 
 ## How the data works
 
@@ -206,13 +208,11 @@ node tools/render-preview.js > preview.svg   # uses real data if present
 - Current data: HYCOM GOFS 3.1 `GLBy0.08/expt_93.0`
   ([HYCOM](https://www.hycom.org/), HYCOM Consortium / U.S. Naval Oceanographic
   Office), snapshot 2024-08-28 — see "Current data snapshot" for full provenance
-- Basemap: © [OpenFreeMap](https://openfreemap.org) ©
-  [OpenMapTiles](https://www.openmaptiles.org/), data from
-  [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors
+- Basemap: [Natural Earth](https://www.naturalearthdata.com/) 1:10m physical
+  land + minor_islands (public domain — no attribution required). Credit is
+  offered here voluntarily; Natural Earth requests but does not require it.
 - Particle engine: [leaflet-velocity](https://github.com/onaci/leaflet-velocity)
   (a Leaflet port of the earth.nullschool / Windy wind-particle renderer)
-- Mapping: [Leaflet](https://leafletjs.com/) +
-  [MapLibre GL JS](https://maplibre.org/) (via
-  [leaflet-maplibre-gl](https://github.com/maplibre/maplibre-gl-leaflet))
+- Mapping: [Leaflet](https://leafletjs.com/)
 - Inspired by the [GCOOS](https://geo.gcoos.org/data/maps/gcoos-region/) Gulf
   region ocean-current map.
