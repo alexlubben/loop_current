@@ -4,7 +4,7 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
-  background: #2b3a4a; /* deep slate ocean — the basemap has no ocean polygon */
+  background: #FFFFFF; /* white ocean — the basemap has no ocean polygon */
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -13,7 +13,7 @@ html, body {
   inset: 0;
   width: 100%;
   height: 100%;
-  background: #2b3a4a;
+  background: #FFFFFF;
   cursor: default;
 }
 #map:active { cursor: default; }
@@ -31,7 +31,7 @@ html, body {
 
 /* The map container's background is the ocean (no ocean polygon); Natural Earth
    land renders over it and the current canvas over that. */
-.leaflet-container { background: #2b3a4a; }
+.leaflet-container { background: #FFFFFF; }
 
 /* ---- Title overlay ---- */
 .title-card {

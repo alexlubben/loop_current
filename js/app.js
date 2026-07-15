@@ -111,8 +111,8 @@
   // GeoJSON layer projects it to Web Mercator itself.
   //
   // There is no ocean polygon: the ocean is the map container's CSS background
-  // (#2b3a4a, a deep slate, see css/style.css) which keeps the blue→red current
-  // ramp readable. Land is a light near-white fill for contrast.
+  // (#FFFFFF, white, see css/style.css) which keeps the blue→red current
+  // ramp readable. Land is a grayish-blue fill for contrast.
 
   // A dedicated low pane guarantees the land always renders *under* the animated
   // current canvas, which lives in Leaflet's overlayPane (z-index 400),
@@ -126,7 +126,7 @@
     style: {
       color: "#c3ccd6",     // faint coastline stroke
       weight: 0.5,
-      fillColor: "#eef1f4", // light near-white land
+      fillColor: "#DBE2EA", // grayish-blue land (reference-map palette)
       fillOpacity: 1,
       opacity: 1
     }
