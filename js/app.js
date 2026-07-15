@@ -163,7 +163,11 @@
                              // let particles drain out of the fast Loop Current jet
                              // and pile up forever in the closed eddy loops, which
                              // makes the current die out and the eddies clump.
-    particleMultiplier: 1 / 150, // streak density
+    particleMultiplier: 1 / 75, // streak density: particles per canvas pixel
+                                // (numParticles = canvasW * canvasH * this).
+                                // Raised from 1/150 for a denser, fuller flow;
+                                // 1/75 fills the field richly and still renders
+                                // smoothly at frameRate 24 without clutter.
     lineWidth: 3,
     frameRate: 24,
     opacity: 0.92,
